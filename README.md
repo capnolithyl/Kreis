@@ -70,7 +70,11 @@ npm install
 npm run tauri dev
 ```
 
-Build an NSIS installer with `npm run tauri build` on Windows. CI checks the frontend, extension and Rust on `windows-latest` without uploading persistent artifacts. For a cloud-built installer, run **Actions → Build Windows installer → Run workflow**, then download its one-day-retention artifact.
+Build an NSIS installer locally with `npm run tauri build` on Windows. Pull-request CI validates the complete Windows build, browser extension and title-filter tests without keeping installer artifacts.
+
+**Automatically on merge:** every push to `main` (including merging a pull request) triggers **Actions → Build Windows installer**. Wait for the workflow to finish, open its run, and download the **Kreis-Windows-installer** artifact. Extract the ZIP to get the Windows `.exe` installer, then install it manually. Artifacts are retained for **one day** to minimize storage usage.
+
+The installer workflow can still be started manually from **Actions → Build Windows installer → Run workflow**. CI's full Windows build is limited to pull requests or explicit manual checks, avoiding a second redundant full compilation on each `main` push. Building an installer does not automatically update installed copies of Kreis.
 
 ## Connect Vivaldi
 
@@ -98,7 +102,7 @@ The provided IHM / Figma entries are **sample shortcuts**; edit or delete them t
 
 The browser tab discovery is scoped to the selected Vivaldi profile. If the companion hasn't been updated or disconnects, Kreis falls back to the original browser shortcut action, after a short timeout.
 
-**Updating:** This feature requires both the updated **Windows app** and the updated **browser extension**. After merging, run **Actions → Build Windows installer**, install it, update the unpacked `extension/` folder, and click **Reload** in `vivaldi://extensions` in both profiles. Your pairing key and saved shortcuts are preserved.
+**Updating:** This feature requires both the updated **Windows app** and the updated **browser extension**. After merging, download the automatically generated installer from **Actions → Build Windows installer**, install it, update the unpacked `extension/` folder, and click **Reload** in `vivaldi://extensions` in both profiles. Your pairing key and saved shortcuts are preserved.
 
 ## Debugging a tab that opens twice
 
