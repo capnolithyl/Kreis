@@ -12,7 +12,7 @@ export type Entry = {
   color: string;
   /** A top-level group ID; absent means show this entry on the main wheel. */
   groupId?: string;
-  /** Optional case-insensitive substring for a specific app window/workspace. */
+  /** Optional case-insensitive substring for a Windows app title or browser tab title. */
   windowTitle?: string;
 };
 
