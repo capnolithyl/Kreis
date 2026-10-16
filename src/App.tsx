@@ -534,7 +534,7 @@ export default function App() {
           </header>
           {error && <div className="alert error" role="alert">{error}</div>}
           {notice && <div className="alert" onClick={() => setNotice('')}>{notice} <X size={14}/></div>}
-          <div className="settings-body">
+          <div className={`settings-body settings-body--${settingsSection}`}>
             {settingsSection === 'hotkey' && <section className="setting-section"><div className="section-title"><h2>Global shortcut</h2><span>Anywhere in Windows</span></div><div className="shortcut-row"><input aria-label="Global shortcut" value={shortcutDraft} onChange={event => setShortcutDraft(event.target.value)} placeholder="Control+Space"/><button className="primary" onClick={() => void saveShortcut()}><Save size={16}/> Apply</button></div><p className="helper">Examples: Control+Space, Control+Alt+K, Alt+Shift+Space. If a shortcut is already claimed, Kreis reports an error and preserves the previous binding.</p></section>}
             
             {settingsSection === 'typography' && <section className="setting-section">
