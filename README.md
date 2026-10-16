@@ -9,12 +9,24 @@ Built with **Tauri 2 + Rust + React + TypeScript**. The browser companion is an 
 - Starts hidden in the Windows tray and shows a round menu around the cursor.
 - Registers **Ctrl+Space** by default, falling back to **Ctrl+Alt+Space** if unavailable.
 - Right-click the tray icon for Open Kreis, Settings, or Quit; left-click opens the wheel.
-- Add/edit/reorder/remove up to 12 Windows executables and website shortcuts, persisted locally.
+- Add/edit/reorder/remove shortcuts and groups, stored locally. Each wheel can display up to 12 shortcuts.
+- Group related items (for example **IHM**) into a nested Kreis. Groups contain browser or desktop-app shortcuts, which can themselves open matching-tab or matching-window wheels.
+- When a desktop app such as VS Code has multiple visible windows, choose the exact workspace window by its Windows title. One window focuses immediately; zero windows use the existing launch fallback.
 - Focus an existing Windows app window by executable name, or launch it when not running.
 - Via the paired Vivaldi extension, find an existing URL, activate its tab, focus its window, or open a new tab in the correct Vivaldi profile.
 - Without an extension connection, opens links in the **system default browser** (cannot guarantee profile selection).
 - For browser shortcuts with **more than one matching tab**, replaces the main wheel with a **sub-Kreis** displaying real tab titles. One match focuses directly; zero matches open the configured URL.
 - Sub-Kreis has **Back** in the center, **New tab** as an outer choice, and seven existing tabs per page. Paginate for more; Escape closes Kreis.
+
+## Organize shortcuts into groups
+
+Open **Settings → Shortcuts and groups → Add group** and create a group named **IHM**, choosing a color and icon. Then **Edit** each existing shortcut (Frontend, Backend, Figma, VS Code, ChatGPT), choose **Placement → IHM**, and save. They disappear from the main wheel and appear inside the IHM group, preserving their URLs, profiles and matching modes.
+
+Selecting **IHM → Frontend** still checks all currently open tabs that match the IHM frontend URL: zero opens the configured URL, one focuses directly, and several open a tab-title wheel. Selecting **IHM → VS Code** similarly opens a titled native-window wheel if multiple VS Code windows are open. Back takes you to the previous level, and Escape closes Kreis from any depth.
+
+Groups are currently **one level deep** (groups cannot contain other groups), and each level supports at most 12 configurable shortcuts. Removing a group moves its members to the main wheel if there is room; otherwise Kreis asks you to reorganize first rather than deleting shortcuts. Application windows with closed handles are checked again before focusing and will report an error, not focus a random window.
+
+This release only updates the Windows app; **the existing Vivaldi extension does not need to be reinstalled or re-paired**.
 
 ## Wheel appearance
 
@@ -73,12 +85,12 @@ The companion extension uses ES-module service workers starting with v0.1.1. Aft
 
 ## Current limitations
 
-- Windows only; the main wheel supports up to 12 configured entries. Nested tab wheels support pagination.
+- Windows only; the main wheel and each group support up to 12 configured entries. Tab/window result wheels support pagination.
 - The menu is click-to-select; flick-to-release gesture navigation is planned for later.
 - The bridge currently supports one connection per profile name. Duplicate `Work` labels override each other; use one copy per profile.
 - A browser that is closed or has a suspended extension causes system-default-browser fallback.
 - Some elevated desktop applications cannot be focused by a non-elevated Kreis process because of Windows foreground restrictions.
-- Startup launch, drag/drop ordering, dynamic desktop-app discovery, and saved ultrawide workspaces are future enhancements.
+- Startup launch, drag/drop ordering, automatic grouping suggestions, and saved ultrawide workspaces are future enhancements.
 
 ## Security / privacy
 
