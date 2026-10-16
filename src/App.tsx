@@ -3,13 +3,14 @@ import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { load, type Store } from '@tauri-apps/plugin-store';
-import { Check, ChevronDown, CircleHelp, Copy, Minus, Plus, RotateCcw, Save, Settings2, Trash2, X } from 'lucide-react';
-import { getPairingKey, getProfiles, hideWheel, launch, toggleWheel } from './bridge';
+import { ArrowLeft, Check, ChevronDown, CircleHelp, Copy, Minus, Plus, RotateCcw, Save, Settings2, Trash2, X } from 'lucide-react';
+import { focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, hideWheel, launch, openNewBrowserTab, toggleWheel, type BrowserTab } from './bridge';
 import { icons } from './icons';
 import { DEFAULT_SETTINGS, type Entry, type Settings, validateEntry } from './types';
 
 const DEFAULT_NEW: Entry = { id: '', title: '', type: 'browser', target: 'https://', profile: 'Work', match: 'prefix', icon: 'globe', color: '#6385d7' };
 const wheelSize = 600;
+const tabsPerPage = 7; // Keep the eighth slot for an explicit New Tab action.
 const editSize = new LogicalSize(820, 680);
 const window = getCurrentWindow();
 
@@ -25,6 +26,26 @@ export default function App() {
   const [shortcutDraft, setShortcutDraft] = useState('Control+Space');
   const activeShortcut = useRef<string | null>(null);
   const store = useRef<Store | null>(null);
+  const [submenu, setSubmenu] = useState<{ entry: Entry; tabs: BrowserTab[] } | null>(null);
+  const [tabPage, setTabPage] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const selectionGeneration = useRef(0);
+
+  const resetWheel = useCallback(() => {
+    selectionGeneration.current++;
+    busyRef.current = false;
+    setBusy(false);
+    setSubmenu(null);
+    setTabPage(0);
+    setError('');
+  }, []);
+
+  async function closeLauncher() {
+    resetWheel();
+    await hideWheel();
+  }
+
 
   const registerShortcut = useCallback(async (shortcut: string) => {
     const previous = activeShortcut.current;
@@ -32,7 +53,7 @@ export default function App() {
     if (previous) await unregister(previous);
     try {
       await register(shortcut, event => {
-        if (event.state === 'Pressed') void (async () => { setScreen('wheel'); await window.setSize(new LogicalSize(wheelSize, wheelSize)); await toggleWheel(); })();
+        if (event.state === 'Pressed') void (async () => { resetWheel(); setScreen('wheel'); await window.setSize(new LogicalSize(wheelSize, wheelSize)); await toggleWheel(); })();
       });
       activeShortcut.current = shortcut;
       return shortcut;
@@ -43,7 +64,7 @@ export default function App() {
       }
       throw new Error(`Unable to register ${shortcut}. Another program may be using it. ${String(cause)}`);
     }
-  }, []);
+  }, [resetWheel]);
 
   useEffect(() => {
     let disposed = false;
@@ -69,7 +90,12 @@ export default function App() {
           setNotice('Ctrl + Space is unavailable. Using Ctrl + Alt + Space instead.');
         }
         setReady(true);
-        const fn = await listen('show-settings', () => { void openSettings(); });
+        const unlistenSettings = await listen('show-settings', () => { void openSettings(); });
+        const unlistenWheel = await listen('kreis-wheel-opened', () => {
+          resetWheel();
+          setScreen('wheel');
+        });
+        const fn = () => { unlistenSettings(); unlistenWheel(); };
         if (disposed) fn(); else unlisten = fn;
       } catch (cause) { setError(String(cause)); }
     })();
@@ -89,8 +115,26 @@ export default function App() {
     setSettings(next);
   }
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        if (draft) { setDraft(null); return; }
+        if (screen === 'settings') { void closeSettings(); return; }
+        void closeLauncher();
+      } else if (event.key === 'Backspace' && screen === 'wheel' && submenu) {
+        event.preventDefault();
+        setSubmenu(null);
+        setTabPage(0);
+        setError('');
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [draft, screen, submenu]);
+
   async function openSettings() {
-    setError('');
+    resetWheel();
     setScreen('settings');
     await window.setSize(editSize);
     await window.center();
@@ -101,6 +145,7 @@ export default function App() {
   }
 
   async function closeSettings() {
+    resetWheel();
     setDraft(null);
     setScreen('wheel');
     await window.setSize(new LogicalSize(wheelSize, wheelSize));
@@ -108,13 +153,79 @@ export default function App() {
   }
 
   async function selectEntry(entry: Entry) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
     setError('');
+    const generation = selectionGeneration.current;
     try {
-      const result = await launch(entry);
-      if (result.details) setNotice(result.details);
-      await hideWheel();
-    } catch (cause) { setError(String(cause)); }
+      if (entry.type === 'browser') {
+        const tabs = await getMatchingTabs(entry);
+        if (generation !== selectionGeneration.current) return;
+        if (tabs && tabs.length > 1) {
+          setSubmenu({ entry, tabs });
+          setTabPage(0);
+          return;
+        }
+        if (tabs && tabs.length === 1) {
+          await focusBrowserTab(entry.profile, tabs[0].id);
+        } else {
+          // Zero matches or an older/disconnected extension retain the legacy behavior.
+          const result = await launch(entry);
+          if (result.details) setNotice(result.details);
+        }
+      } else {
+        await launch(entry);
+      }
+      if (generation === selectionGeneration.current) await closeLauncher();
+    } catch (cause) {
+      if (generation === selectionGeneration.current) setError(String(cause));
+    } finally {
+      if (generation === selectionGeneration.current) {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    }
   }
+
+  async function selectTab(tab: BrowserTab) {
+    if (!submenu || busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
+    const generation = selectionGeneration.current;
+    try {
+      await focusBrowserTab(submenu.entry.profile, tab.id);
+      if (generation === selectionGeneration.current) await closeLauncher();
+    } catch (cause) {
+      if (generation === selectionGeneration.current) setError(String(cause));
+    } finally {
+      if (generation === selectionGeneration.current) {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    }
+  }
+
+  async function openNewTab() {
+    if (!submenu || busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
+    const generation = selectionGeneration.current;
+    try {
+      await openNewBrowserTab(submenu.entry);
+      if (generation === selectionGeneration.current) await closeLauncher();
+    } catch (cause) {
+      if (generation === selectionGeneration.current) setError(String(cause));
+    } finally {
+      if (generation === selectionGeneration.current) {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    }
+  }
+
 
   async function saveShortcut() {
     setError('');
@@ -152,27 +263,73 @@ export default function App() {
     catch (cause) { setError(String(cause)); }
   }
 
+  const pageCount = submenu ? Math.ceil(submenu.tabs.length / tabsPerPage) : 1;
+  const visibleTabs = submenu ? submenu.tabs.slice(tabPage * tabsPerPage, (tabPage + 1) * tabsPerPage) : [];
+  const wheelButtons: { key: string; title: string; color: string; icon: string; tooltip: string; onSelect: () => void; isNew?: boolean }[] = submenu
+    ? [
+        ...visibleTabs.map(tab => ({
+          key: `tab-${tab.id}`,
+          title: tab.title || 'Untitled tab',
+          color: submenu.entry.color,
+          icon: submenu.entry.icon,
+          tooltip: tab.title || 'Untitled tab',
+          onSelect: () => void selectTab(tab)
+        })),
+        {
+          key: 'new-tab',
+          title: 'New tab',
+          color: '#3b846d',
+          icon: 'plus',
+          tooltip: `Open a new ${submenu.entry.title} tab`,
+          onSelect: () => void openNewTab(),
+          isNew: true
+        }
+      ]
+    : settings.entries.map(entry => ({
+        key: entry.id, title: entry.title, color: entry.color, icon: entry.icon,
+        tooltip: `${entry.title} (${entry.type === 'browser' ? entry.profile : 'Windows'})`,
+        onSelect: () => void selectEntry(entry)
+      }));
+
   return (
     <main className={screen === 'wheel' ? 'wheel-screen' : 'settings-screen'}>
       {screen === 'wheel' ? (
-        <div className="wheel" role="menu" aria-label="Kreis launcher">
+        <div className="wheel" role="menu" aria-label={submenu ? `${submenu.entry.title} tabs` : 'Kreis launcher'}>
           <div className="outer-orbit" />
-          {settings.entries.map((entry, i) => {
-            const angle = -Math.PI / 2 + i * Math.PI * 2 / settings.entries.length;
-            const radius = settings.entries.length > 9 ? 240 : 224;
+          {submenu && <p className="wheel-subheading">{submenu.entry.title} · {submenu.tabs.length} open tabs</p>}
+          {wheelButtons.map((item, i) => {
+            const angle = -Math.PI / 2 + i * Math.PI * 2 / wheelButtons.length;
+            const radius = wheelButtons.length > 9 ? 240 : 224;
             const x = wheelSize / 2 + Math.cos(angle) * radius;
             const y = wheelSize / 2 + Math.sin(angle) * radius;
-            const Icon = icons[entry.icon] || icons.rocket;
+            const Icon = item.isNew ? Plus : (icons[item.icon] || icons.rocket);
             return (
-              <button key={entry.id} className="wheel-item" style={{ left: x, top: y, '--accent': entry.color } as CSSProperties} onClick={() => void selectEntry(entry)} title={`${entry.title} (${entry.type === 'browser' ? entry.profile : 'Windows'})`}>
-                <span className="wheel-icon"><Icon size={25}/></span><span className="wheel-label">{entry.title}</span>
+              <button key={item.key} className="wheel-item" style={{ left: x, top: y, '--accent': item.color } as CSSProperties}
+                disabled={busy} onClick={item.onSelect} title={item.tooltip}>
+                <span className="wheel-icon"><Icon size={25}/></span>
+                <span className="wheel-label">{item.title}</span>
               </button>
             );
           })}
-          <button className="wheel-center" onClick={() => void openSettings()} aria-label="Open Kreis settings">
-            <span className="kreis-mark">K</span><span>SETTINGS</span><Settings2 size={15}/>
-          </button>
-          <button className="close-wheel" onClick={() => void hideWheel()} aria-label="Close wheel"><X size={20}/></button>
+          {submenu ? (
+            <button className="wheel-center" onClick={() => { setSubmenu(null); setTabPage(0); setError(''); }}
+              disabled={busy} aria-label="Back to main Kreis">
+              <ArrowLeft size={30}/><span>BACK</span><span className="sub-context">{submenu.entry.title}</span>
+            </button>
+          ) : (
+            <button className="wheel-center" onClick={() => void openSettings()} aria-label="Open Kreis settings">
+              <span className="kreis-mark">K</span><span>SETTINGS</span><Settings2 size={15}/>
+            </button>
+          )}
+          {submenu && pageCount > 1 && (
+            <div className="wheel-page-controls">
+              <button disabled={busy || tabPage === 0} onClick={() => setTabPage(current => current - 1)} aria-label="Previous page">‹ Prev</button>
+              <span>{tabPage + 1} / {pageCount}</span>
+              <button disabled={busy || tabPage >= pageCount - 1} onClick={() => setTabPage(current => current + 1)} aria-label="Next page">Next ›</button>
+            </div>
+          )}
+          <button className="close-wheel" onClick={() => void closeLauncher()} aria-label="Close wheel"><X size={20}/></button>
+          {busy && <p className="wheel-loading">Finding your window…</p>}
           {error && <p className="wheel-error">{error}</p>}
         </div>
       ) : (
