@@ -11,27 +11,27 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
    Nothing in this section paints a rectangular background or shadow. */
 .wheel-screen { width: 100%; height: 100%; position: relative; background: transparent; }
 .wheel { width: 600px; height: 600px; position: relative; isolation: isolate; background: transparent; }
-.wheel-enter { position: absolute; inset: 0; transform-origin: 50% 50%; animation: wheel-reveal 260ms cubic-bezier(.16, 1, .3, 1) both; }
+.wheel-enter { position: absolute; inset: 0; transform-origin: 50% 50%; animation: wheel-reveal 690ms cubic-bezier(.2, .75, .2, 1) both; }
 .wheel-svg { display: block; position: absolute; inset: 0; overflow: visible; }
 .wheel-ambient { fill: #0b1423; fill-opacity: .68; stroke: rgba(124, 155, 194, .38); stroke-width: 1.3; pointer-events: none; }
-.wheel-segment { cursor: pointer; opacity: 0; outline: none; transform-origin: 300px 300px; animation: wedge-reveal 310ms cubic-bezier(.16, 1, .3, 1) both; animation-delay: calc(var(--segment-index) * 18ms); }
-.wheel-segment-base { fill: url(#kreis-segment-base); stroke: #122337; stroke-width: 2.8; transition: stroke 160ms ease, filter 160ms ease; }
-.wheel-segment-tint { fill: var(--accent); fill-opacity: .16; stroke: var(--accent); stroke-opacity: .22; stroke-width: 1; pointer-events: none; transition: fill-opacity 170ms ease, stroke-opacity 170ms ease; }
+.wheel-segment { cursor: pointer; opacity: 0; outline: none; transform-origin: 300px 300px; animation: wedge-reveal 570ms cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--segment-index) * 32ms); }
+.wheel-segment-base { fill: url(#kreis-segment-base); stroke: none; transition: filter 180ms ease; }
+.wheel-segment-tint { fill: var(--accent); fill-opacity: .23; stroke: none; pointer-events: none; transition: fill-opacity 180ms ease; }
 .wheel-segment-content { color: #f5f8ff; transition: transform 170ms cubic-bezier(.2,.8,.2,1); transform-box: fill-box; transform-origin: center; }
 .wheel-segment-icon { fill: none; color: #f5f8ff; filter: drop-shadow(0 1px 2px #0006); transition: color 170ms ease; }
-.wheel-segment-label { fill: #f1f5fd; font-size: 12px; font-weight: 650; letter-spacing: .05px; dominant-baseline: auto; paint-order: stroke fill; stroke: #0e1725; stroke-width: 2.3px; stroke-linejoin: round; }
-.wheel-segment:hover .wheel-segment-tint, .wheel-segment:focus-visible .wheel-segment-tint { fill-opacity: .37; stroke-opacity: .8; }
-.wheel-segment:hover .wheel-segment-base, .wheel-segment:focus-visible .wheel-segment-base { stroke: #bed3ed; stroke-width: 2.4; filter: brightness(1.18); }
+.wheel-segment-label { fill: #f1f5fd; font-family: inherit; font-size: var(--wheel-label-size, 12px); font-weight: 650; letter-spacing: .05px; dominant-baseline: auto; paint-order: stroke fill; stroke: #0e1725; stroke-width: 2.3px; stroke-linejoin: round; }
+.wheel-segment:hover .wheel-segment-tint, .wheel-segment:focus-visible .wheel-segment-tint { fill-opacity: .45; }
+.wheel-segment:hover .wheel-segment-base, .wheel-segment:focus-visible .wheel-segment-base { filter: brightness(1.22); }
 .wheel-segment:hover .wheel-segment-content, .wheel-segment:focus-visible .wheel-segment-content { transform: translateY(-3px) scale(1.05); }
-.wheel-segment:focus-visible .wheel-segment-base { stroke: #fff; stroke-width: 3.8; }
+.wheel-segment:focus-visible .wheel-segment-base { stroke: #d8e9ff; stroke-width: 2; stroke-opacity: .9; }
 .wheel-segment[aria-disabled="true"] { cursor: progress; }
 .wheel-inner-halo { stroke: #6f91ba; stroke-opacity: .52; stroke-width: 1.4; }
 .wheel-inner-line { fill: none; stroke: #dae9ff; stroke-opacity: .11; stroke-width: 3; }
 
 /* The center remains a real HTML button for pointer and keyboard access. */
-.wheel-center { position: absolute; left: 201px; top: 201px; width: 198px; height: 198px; border-radius: 50%; border: 0; background: transparent; color: #f5f8ff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; text-align: center; animation: center-reveal 300ms cubic-bezier(.16,1,.3,1) both; transition: background 170ms ease, box-shadow 170ms ease, transform 170ms ease; }
+.wheel-center { position: absolute; left: 201px; top: 201px; width: 198px; height: 198px; border-radius: 50%; border: 0; background: transparent; color: #f5f8ff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; text-align: center; animation: center-reveal 550ms cubic-bezier(.16,1,.3,1) both; animation-delay: 130ms; transition: background 170ms ease, box-shadow 170ms ease, transform 170ms ease; }
 .wheel-center:hover, .wheel-center:focus-visible { background: rgba(106, 141, 181, .13); box-shadow: inset 0 0 26px #b7d9fd13; transform: scale(1.035); }
-.wheel-center-name { font-size: 16px; font-weight: 800; letter-spacing: 2.2px; }
+.wheel-center-name { font-size: var(--wheel-center-size, 16px); font-weight: 800; letter-spacing: 2.2px; }
 .wheel-center-description { font-size: 11px; font-weight: 500; letter-spacing: .3px; color: #b5c5dd; }
 .wheel-center .sub-context { font-size: 11px; font-weight: 500; letter-spacing: 0; color: #b6c8e0; max-width: 156px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
 .wheel-subheading { position: absolute; left: 130px; right: 130px; top: 12px; margin: 0; text-align: center; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; color: #e1ebf8; font-size: 12px; font-weight: 750; pointer-events: none; }
@@ -48,7 +48,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .wheel-error { color: #ffe1e6; background: #643044ec; bottom: 2px; }
 
 @keyframes wheel-reveal {
-  from { opacity: 0; transform: scale(.9) rotate(-5deg); filter: blur(5px); }
+  from { opacity: 0; transform: scale(.91) rotate(-20deg); filter: blur(4px); }
   to { opacity: 1; transform: scale(1) rotate(0deg); filter: blur(0); }
 }
 @keyframes center-reveal {
@@ -56,7 +56,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   to { opacity: 1; transform: scale(1); }
 }
 @keyframes wedge-reveal {
-  from { opacity: 0; transform: rotate(-7deg) scale(.9); }
+  from { opacity: 0; transform: rotate(-5deg) scale(.97); }
   to { opacity: 1; transform: rotate(0deg) scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -118,3 +118,15 @@ input::placeholder { color: #687692; }
 .form-grid .color-input {height:42px; padding:5px;}
 .dialog-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:23px; }
 
+
+/* Editable wheel typography in Settings; preview uses the same font stack as the wheel. */
+.appearance-controls { display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 16px; }
+.appearance-controls label { display: flex; flex-direction: column; gap: 9px; font-size: 12px; color: #b9c6db; }
+.appearance-controls label span { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.appearance-controls label strong { color: #e2eaff; font-variant-numeric: tabular-nums; }
+.appearance-controls input[type="range"] { width: 100%; min-height: 37px; padding: 0; cursor: pointer; accent-color: #92a8fb; background: transparent; border: 0; }
+.appearance-preview { display: flex; gap: 22px; align-items: center; margin-top: 14px; background: #1a2538; border: 1px solid #34445e; border-radius: 12px; padding: 13px 16px; }
+.appearance-preview .sample-label { flex: 1; color: #e8f0ff; line-height: 1.3; }
+.appearance-preview .sample-center { color: #dce7ff; font-weight: 800; letter-spacing: 1.4px; }
+.appearance-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
+@media (max-width: 720px) { .appearance-controls { grid-template-columns: 1fr; } }
