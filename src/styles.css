@@ -130,3 +130,13 @@ input::placeholder { color: #687692; }
 .appearance-preview .sample-center { color: #dce7ff; font-weight: 800; letter-spacing: 1.4px; }
 .appearance-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
 @media (max-width: 720px) { .appearance-controls { grid-template-columns: 1fr; } }
+
+/* Groups nest shortcuts visually in Settings without adding unrelated navigation controls. */
+.section-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.entry-row--group { background: #23314a; border: 1px solid #465d7a; }
+.entry-row--child { margin-left: 22px; background: #161f30; border-left: 2px solid #536987; border-radius: 0 10px 10px 0; }
+.entry-row--group .entry-name strong { color: #f2f5ff; }
+.entry-row--child .entry-icon { width: 33px; height: 33px; }
+.setting-section .section-title { flex-wrap: wrap; }
+
+.dialog-error { margin: 14px 0 0; padding: 10px 12px; color: #ffe3ed; background: #5e3043; border-radius: 8px; font-size: 12px; }

@@ -4,11 +4,18 @@ import { listen } from '@tauri-apps/api/event';
 import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { load, type Store } from '@tauri-apps/plugin-store';
 import { ArrowLeft, Check, ChevronDown, CircleHelp, Copy, Minus, Plus, RotateCcw, Save, Settings2, Trash2, X } from 'lucide-react';
-import { focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, hideWheel, launch, openNewBrowserTab, toggleWheel, type BrowserTab } from './bridge';
+import { focusAppWindow, focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, hideWheel, launch, listAppWindows, openNewBrowserTab, toggleWheel, type AppWindow, type BrowserTab } from './bridge';
 import { icons } from './icons';
 import { DEFAULT_APPEARANCE, DEFAULT_SETTINGS, WHEEL_FONTS, normalizeAppearance, wheelFontStack, type Entry, type Settings, type WheelAppearance, type WheelFont, validateEntry } from './types';
 import RadialWheel, { type WheelOption } from './RadialWheel';
 
+type WheelLevel =
+  | { kind: 'group'; entry: Entry }
+  | { kind: 'tabs'; entry: Entry; tabs: BrowserTab[] }
+  | { kind: 'apps'; entry: Entry; windows: AppWindow[] };
+
+const MAX_ITEMS_PER_WHEEL = 12;
+const DEFAULT_GROUP: Entry = { id: '', title: '', type: 'group', target: '', profile: 'Work', match: 'prefix', icon: 'folder', color: '#6a8ec2' };
 const DEFAULT_NEW: Entry = { id: '', title: '', type: 'browser', target: 'https://', profile: 'Work', match: 'prefix', icon: 'globe', color: '#6385d7' };
 const wheelSize = 600;
 const tabsPerPage = 7; // Keep the eighth slot for an explicit New Tab action.
@@ -28,7 +35,7 @@ export default function App() {
   const [shortcutDraft, setShortcutDraft] = useState('Control+Space');
   const activeShortcut = useRef<string | null>(null);
   const store = useRef<Store | null>(null);
-  const [submenu, setSubmenu] = useState<{ entry: Entry; tabs: BrowserTab[] } | null>(null);
+  const [levels, setLevels] = useState<WheelLevel[]>([]);
   const [tabPage, setTabPage] = useState(0);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -40,7 +47,7 @@ export default function App() {
     setWheelEpoch(current => current + 1);
     busyRef.current = false;
     setBusy(false);
-    setSubmenu(null);
+    setLevels([]);
     setTabPage(0);
     setError('');
   }, []);
@@ -129,16 +136,14 @@ export default function App() {
         if (draft) { setDraft(null); return; }
         if (screen === 'settings') { void closeSettings(); return; }
         void closeLauncher();
-      } else if (event.key === 'Backspace' && screen === 'wheel' && submenu) {
+      } else if (event.key === 'Backspace' && screen === 'wheel' && levels.length > 0) {
         event.preventDefault();
-        setSubmenu(null);
-        setTabPage(0);
-        setError('');
+        backOneLevel();
       }
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [draft, screen, submenu]);
+  }, [draft, screen, levels]);
 
   async function openSettings() {
     resetWheel();
@@ -160,8 +165,24 @@ export default function App() {
     await hideWheel();
   }
 
+  function backOneLevel() {
+    setLevels(current => current.slice(0, -1));
+    setTabPage(0);
+    setError('');
+  }
+
+  function pushLevel(level: WheelLevel) {
+    setLevels(current => [...current, level]);
+    setTabPage(0);
+    setError('');
+  }
+
   async function selectEntry(entry: Entry) {
     if (busyRef.current) return;
+    if (entry.type === 'group') {
+      pushLevel({ kind: 'group', entry });
+      return;
+    }
     busyRef.current = true;
     setBusy(true);
     setError('');
@@ -171,19 +192,35 @@ export default function App() {
         const tabs = await getMatchingTabs(entry);
         if (generation !== selectionGeneration.current) return;
         if (tabs && tabs.length > 1) {
-          setSubmenu({ entry, tabs });
-          setTabPage(0);
+          pushLevel({ kind: 'tabs', entry, tabs });
           return;
         }
         if (tabs && tabs.length === 1) {
           await focusBrowserTab(entry.profile, tabs[0].id);
         } else {
-          // Zero matches or an older/disconnected extension retain the legacy behavior.
+          // An old/disconnected extension retains the previous URL fallback.
           const result = await launch(entry);
           if (result.details) setNotice(result.details);
         }
-      } else {
-        await launch(entry);
+      } else if (entry.type === 'app') {
+        const availableWindows = await listAppWindows(entry.target);
+        if (generation !== selectionGeneration.current) return;
+        const titleFilter = entry.windowTitle?.trim().toLocaleLowerCase() || '';
+        const windows = titleFilter
+          ? availableWindows.filter(appWindow => appWindow.title.toLocaleLowerCase().includes(titleFilter))
+          : availableWindows;
+        if (titleFilter && windows.length === 0) {
+          throw new Error(`No ${entry.title} window matching "${entry.windowTitle}" is open.`);
+        }
+        if (windows.length > 1) {
+          pushLevel({ kind: 'apps', entry, windows });
+          return;
+        }
+        if (windows.length === 1) {
+          await focusAppWindow(entry.target, windows[0].id);
+        } else {
+          await launch(entry);
+        }
       }
       if (generation === selectionGeneration.current) await closeLauncher();
     } catch (cause) {
@@ -196,14 +233,14 @@ export default function App() {
     }
   }
 
-  async function selectTab(tab: BrowserTab) {
-    if (!submenu || busyRef.current) return;
+  async function selectTab(tab: BrowserTab, entry: Entry) {
+    if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     setError('');
     const generation = selectionGeneration.current;
     try {
-      await focusBrowserTab(submenu.entry.profile, tab.id);
+      await focusBrowserTab(entry.profile, tab.id);
       if (generation === selectionGeneration.current) await closeLauncher();
     } catch (cause) {
       if (generation === selectionGeneration.current) setError(String(cause));
@@ -215,14 +252,14 @@ export default function App() {
     }
   }
 
-  async function openNewTab() {
-    if (!submenu || busyRef.current) return;
+  async function selectAppWindow(appWindow: AppWindow, entry: Entry) {
+    if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     setError('');
     const generation = selectionGeneration.current;
     try {
-      await openNewBrowserTab(submenu.entry);
+      await focusAppWindow(entry.target, appWindow.id);
       if (generation === selectionGeneration.current) await closeLauncher();
     } catch (cause) {
       if (generation === selectionGeneration.current) setError(String(cause));
@@ -234,6 +271,24 @@ export default function App() {
     }
   }
 
+  async function openNewTab(entry: Entry) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
+    const generation = selectionGeneration.current;
+    try {
+      await openNewBrowserTab(entry);
+      if (generation === selectionGeneration.current) await closeLauncher();
+    } catch (cause) {
+      if (generation === selectionGeneration.current) setError(String(cause));
+    } finally {
+      if (generation === selectionGeneration.current) {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    }
+  }
 
   async function saveAppearance() {
     setError('');
@@ -256,80 +311,146 @@ export default function App() {
     } catch (cause) { setError(String(cause)); }
   }
 
+  function childrenFor(groupId: string) {
+    return settings.entries.filter(entry => entry.type !== 'group' && entry.groupId === groupId);
+  }
+
   async function saveEntry() {
     if (!draft) return;
     const problem = validateEntry(draft);
     if (problem) return setError(problem);
-    if (!draft.id && settings.entries.length >= 12) return setError('The first wheel supports up to 12 entries.');
-    const entry = { ...draft, id: draft.id || crypto.randomUUID(), title: draft.title.trim(), target: draft.target.trim() };
-    const entries = draft.id ? settings.entries.map(current => current.id === draft.id ? entry : current) : [...settings.entries, entry];
+    const groups = settings.entries.filter(entry => entry.type === 'group');
+    if (draft.type !== 'group' && draft.groupId && !groups.some(group => group.id === draft.groupId)) {
+      return setError('Select an existing group.');
+    }
+    const entry: Entry = {
+      ...draft,
+      id: draft.id || crypto.randomUUID(),
+      title: draft.title.trim(),
+      target: draft.type === 'group' ? '' : draft.target.trim(),
+      groupId: draft.type === 'group' ? undefined : draft.groupId || undefined,
+      windowTitle: draft.type === 'app' ? draft.windowTitle?.trim() || undefined : undefined
+    };
+    const entries = draft.id
+      ? settings.entries.map(current => current.id === draft.id ? entry : current)
+      : [...settings.entries, entry];
+    const rootCount = entries.filter(item => !item.groupId).length;
+    if (rootCount > MAX_ITEMS_PER_WHEEL) return setError('The main wheel can hold 12 shortcuts. Move an entry into a group first.');
+    for (const group of entries.filter(item => item.type === 'group')) {
+      if (entries.filter(item => item.groupId === group.id).length > MAX_ITEMS_PER_WHEEL) {
+        return setError(`The ${group.title} group already has 12 shortcuts.`);
+      }
+    }
     try { await persist({ ...settings, entries }); setDraft(null); setError(''); }
     catch (cause) { setError(String(cause)); }
   }
 
   async function deleteEntry(id: string) {
-    try { await persist({ ...settings, entries: settings.entries.filter(entry => entry.id !== id) }); }
+    const removed = settings.entries.find(entry => entry.id === id);
+    if (!removed) return;
+    let entries = settings.entries.filter(entry => entry.id !== id);
+    if (removed.type === 'group') {
+      // Keep users' shortcuts when a group is removed.
+      entries = entries.map(entry =>
+        entry.groupId === id ? { ...entry, groupId: undefined } : entry
+      );
+      if (entries.filter(entry => !entry.groupId).length > MAX_ITEMS_PER_WHEEL) {
+        return setError('Cannot remove this group: the main wheel would have over 12 items. Move or remove some members first.');
+      }
+    }
+    try { await persist({ ...settings, entries }); setError(''); }
     catch (cause) { setError(String(cause)); }
   }
 
-  async function moveEntry(index: number, delta: number) {
-    const other = index + delta;
-    if (other < 0 || other >= settings.entries.length) return;
+  async function moveEntry(id: string, delta: number) {
+    const item = settings.entries.find(entry => entry.id === id);
+    if (!item) return;
+    const siblings = settings.entries.filter(entry => (entry.groupId || '') === (item.groupId || ''));
+    const index = siblings.findIndex(entry => entry.id === id);
+    const next = siblings[index + delta];
+    if (!next) return;
     const entries = [...settings.entries];
-    [entries[index], entries[other]] = [entries[other], entries[index]];
-    try { await persist({ ...settings, entries }); }
+    const from = entries.findIndex(entry => entry.id === id);
+    const to = entries.findIndex(entry => entry.id === next.id);
+    [entries[from], entries[to]] = [entries[to], entries[from]];
+    try { await persist({ ...settings, entries }); setError(''); }
     catch (cause) { setError(String(cause)); }
   }
 
-  const pageCount = submenu ? Math.ceil(submenu.tabs.length / tabsPerPage) : 1;
-  const visibleTabs = submenu ? submenu.tabs.slice(tabPage * tabsPerPage, (tabPage + 1) * tabsPerPage) : [];
-  const wheelButtons: WheelOption[] = submenu
-    ? [
-        ...visibleTabs.map(tab => ({
-          key: `tab-${tab.id}`,
-          title: tab.title || 'Untitled tab',
-          color: submenu.entry.color,
-          icon: submenu.entry.icon,
-          tooltip: tab.title || 'Untitled tab',
-          onSelect: () => void selectTab(tab)
-        })),
-        {
-          key: 'new-tab',
-          title: 'New tab',
-          color: '#3b846d',
-          icon: 'plus',
-          tooltip: `Open a new ${submenu.entry.title} tab`,
-          onSelect: () => void openNewTab(),
-          isNew: true
-        }
-      ]
-    : settings.entries.map(entry => ({
-        key: entry.id, title: entry.title, color: entry.color, icon: entry.icon,
-        tooltip: `${entry.title} (${entry.type === 'browser' ? entry.profile : 'Windows'})`,
-        onSelect: () => void selectEntry(entry)
-      }));
+  const groupIds = new Set(settings.entries.filter(entry => entry.type === 'group').map(entry => entry.id));
+  const rootEntries = settings.entries.filter(entry => !entry.groupId || !groupIds.has(entry.groupId));
+  const arrangedEntries = rootEntries.flatMap(entry =>
+    entry.type === 'group' ? [entry, ...childrenFor(entry.id)] : [entry]
+  );
+  const activeLevel = levels[levels.length - 1];
+  const currentOptions = activeLevel?.kind === 'group'
+    ? childrenFor(activeLevel.entry.id) : rootEntries;
+
+  const pageCount = activeLevel?.kind === 'tabs'
+    ? Math.ceil(activeLevel.tabs.length / tabsPerPage)
+    : activeLevel?.kind === 'apps'
+      ? Math.ceil(activeLevel.windows.length / 8) : 1;
+  const wheelButtons: WheelOption[] =
+    activeLevel?.kind === 'tabs'
+      ? [
+          ...activeLevel.tabs.slice(tabPage * tabsPerPage, (tabPage + 1) * tabsPerPage)
+            .map(tab => ({
+              key: `tab-${tab.id}`, title: tab.title || 'Untitled tab',
+              color: activeLevel.entry.color, icon: activeLevel.entry.icon,
+              tooltip: tab.title || 'Untitled tab',
+              onSelect: () => void selectTab(tab, activeLevel.entry)
+            })),
+          {
+            key: 'new-tab', title: 'New tab', color: '#3b846d',
+            icon: 'plus', isNew: true,
+            tooltip: `Open a new ${activeLevel.entry.title} tab`,
+            onSelect: () => void openNewTab(activeLevel.entry)
+          }
+        ]
+      : activeLevel?.kind === 'apps'
+        ? activeLevel.windows.slice(tabPage * 8, (tabPage + 1) * 8)
+          .map(appWindow => ({
+            key: `window-${appWindow.id}`, title: appWindow.title,
+            color: activeLevel.entry.color, icon: activeLevel.entry.icon,
+            tooltip: appWindow.title,
+            onSelect: () => void selectAppWindow(appWindow, activeLevel.entry)
+          }))
+        : currentOptions.map(entry => ({
+            key: entry.id, title: entry.title, color: entry.color, icon: entry.icon,
+            tooltip: entry.type === 'group' ? `Open ${entry.title} group`
+              : `${entry.title} (${entry.type === 'browser' ? entry.profile : 'Windows'})`,
+            onSelect: () => void selectEntry(entry)
+          }));
+
+  const levelCount = activeLevel?.kind === 'group'
+    ? currentOptions.length
+    : activeLevel?.kind === 'tabs' ? activeLevel.tabs.length
+      : activeLevel?.kind === 'apps' ? activeLevel.windows.length : 0;
+  const levelCountLabel = activeLevel?.kind === 'group' ? 'shortcuts'
+    : activeLevel?.kind === 'apps' ? 'windows' : 'tabs';
 
   return (
     <main className={screen === 'wheel' ? 'wheel-screen' : 'settings-screen'}>
       {screen === 'wheel' ? (
         <RadialWheel
-          key={submenu ? `sub-${submenu.entry.id}-${tabPage}-${wheelEpoch}` : `main-${wheelEpoch}`}
+          key={activeLevel ? `${activeLevel.kind}-${activeLevel.entry.id}-${tabPage}-${wheelEpoch}` : `main-${wheelEpoch}`}
           buttons={wheelButtons}
           appearance={settings.appearance}
-          submenuTitle={submenu?.entry.title}
-          tabCount={submenu?.tabs.length}
+          submenuTitle={activeLevel?.entry.title}
+          tabCount={levelCount}
+          countLabel={levelCountLabel}
           busy={busy}
           error={error}
           page={tabPage}
           pageCount={pageCount}
           onSettings={() => void openSettings()}
-          onBack={() => { setSubmenu(null); setTabPage(0); setError(''); }}
+          onBack={backOneLevel}
           onClose={() => void closeLauncher()}
           onPageChange={setTabPage}
         />
       ) : (
         <div className="settings-shell">
-          <header className="settings-header"><div><div className="overline">YOUR SHORTCUT TO EVERYTHING</div><h1>Kreis <small>0.3.0</small></h1><p>Pick a direction. Get back to work.</p></div><button className="icon-button" onClick={() => void closeSettings()} title="Close settings"><X/></button></header>
+          <header className="settings-header"><div><div className="overline">YOUR SHORTCUT TO EVERYTHING</div><h1>Kreis <small>0.4.0</small></h1><p>Pick a direction. Get back to work.</p></div><button className="icon-button" onClick={() => void closeSettings()} title="Close settings"><X/></button></header>
           {error && <div className="alert error" role="alert">{error}</div>}
           {notice && <div className="alert" onClick={() => setNotice('')}>{notice} <X size={14}/></div>}
           <div className="settings-body">
@@ -368,13 +489,144 @@ export default function App() {
                 <button className="primary" onClick={() => void saveAppearance()}><Save size={16}/> Apply typography</button>
               </div>
             </section>
-            <section className="setting-section"><div className="section-title"><h2>Wheel entries <span className="count">{settings.entries.length}/12</span></h2><button className="secondary" disabled={settings.entries.length >= 12} onClick={() => {setDraft({...DEFAULT_NEW}); setError('');}}><Plus size={16}/> Add entry</button></div>
-            <div className="entry-list">{settings.entries.map((entry, index) => { const Icon = icons[entry.icon] || icons.rocket; return (<div className="entry-row" key={entry.id}><div className="entry-icon" style={{background: entry.color}}><Icon size={20}/></div><div className="entry-name"><strong>{entry.title}</strong><small>{entry.type === 'app' ? 'Windows app' : `Vivaldi · ${entry.profile}`}</small></div><span className="entry-target" title={entry.target}>{entry.target}</span><div className="entry-actions"><button className="tiny" aria-label={`Move ${entry.title} up`} disabled={index === 0} onClick={() => void moveEntry(index, -1)}>↑</button><button className="tiny" aria-label={`Move ${entry.title} down`} disabled={index === settings.entries.length - 1} onClick={() => void moveEntry(index, 1)}>↓</button><button className="tiny" onClick={() => {setDraft({...entry});setError('');}}>Edit</button><button className="tiny danger" aria-label={`Delete ${entry.title}`} onClick={() => void deleteEntry(entry.id)}><Trash2 size={15}/></button></div></div>);})}</div>
+            <section className="setting-section">
+              <div className="section-title">
+                <h2>Shortcuts and groups <span className="count">{rootEntries.length}/12 main · {settings.entries.length} total</span></h2>
+                <div className="section-buttons">
+                  <button className="secondary" disabled={rootEntries.length >= MAX_ITEMS_PER_WHEEL}
+                    onClick={() => { setDraft({ ...DEFAULT_GROUP }); setError(''); }}>
+                    <Plus size={16}/> Add group
+                  </button>
+                  <button className="secondary"
+                    disabled={rootEntries.length >= MAX_ITEMS_PER_WHEEL && groupIds.size === 0}
+                    onClick={() => {
+                      setDraft({ ...DEFAULT_NEW, groupId: rootEntries.length >= MAX_ITEMS_PER_WHEEL
+                        ? settings.entries.find(entry => entry.type === 'group')?.id : undefined });
+                      setError('');
+                    }}>
+                    <Plus size={16}/> Add shortcut
+                  </button>
+                </div>
+              </div>
+              <p className="helper">Create a group, then edit a shortcut and set its placement to that group. Groups keep the main wheel tidy; browser and desktop-app shortcuts still open their own matching tab/window wheels.</p>
+              <div className="entry-list">
+                {arrangedEntries.map(entry => {
+                  const Icon = icons[entry.icon] || icons.rocket;
+                  const siblings = settings.entries.filter(item => (item.groupId || '') === (entry.groupId || ''));
+                  const siblingIndex = siblings.findIndex(item => item.id === entry.id);
+                  const isGroup = entry.type === 'group';
+                  return (
+                    <div className={`entry-row${isGroup ? ' entry-row--group' : ''}${entry.groupId ? ' entry-row--child' : ''}`} key={entry.id}>
+                      <div className="entry-icon" style={{background: entry.color}}><Icon size={20}/></div>
+                      <div className="entry-name">
+                        <strong>{entry.title}</strong>
+                        <small>{isGroup ? `Group · ${childrenFor(entry.id).length} shortcuts`
+                          : entry.type === 'app' ? 'Windows app' : `Vivaldi · ${entry.profile}`}</small>
+                      </div>
+                      <span className="entry-target" title={entry.target}>
+                        {isGroup ? 'Nested Kreis' : entry.target}
+                      </span>
+                      <div className="entry-actions">
+                        <button className="tiny" aria-label={`Move ${entry.title} up`} disabled={siblingIndex <= 0}
+                          onClick={() => void moveEntry(entry.id, -1)}>↑</button>
+                        <button className="tiny" aria-label={`Move ${entry.title} down`} disabled={siblingIndex >= siblings.length - 1}
+                          onClick={() => void moveEntry(entry.id, 1)}>↓</button>
+                        <button className="tiny" onClick={() => { setDraft({...entry}); setError(''); }}>Edit</button>
+                        <button className="tiny danger" aria-label={`Delete ${entry.title}`}
+                          onClick={() => void deleteEntry(entry.id)}><Trash2 size={15}/></button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </section>
             <section className="setting-section"><div className="section-title"><h2>Browser connection</h2><button className="secondary" onClick={() => void getProfiles().then(setProfiles)}>Refresh</button></div><div className="profiles"><div>Work <strong className={profiles.includes('Work') ? 'online' : 'offline'}>{profiles.includes('Work') ? 'Connected' : 'Not connected'}</strong></div><div>Personal <strong className={profiles.includes('Personal') ? 'online' : 'offline'}>{profiles.includes('Personal') ? 'Connected' : 'Not connected'}</strong></div></div><label className="helper" htmlFor="pairing-key">Pairing key (paste into each Vivaldi profile's Kreis extension)</label><div className="shortcut-row"><input id="pairing-key" readOnly type="password" value={pairingKey}/><button className="secondary" onClick={() => void navigator.clipboard.writeText(pairingKey)}><Copy size={15}/> Copy</button></div><p className="helper">The extension switches to existing tabs, including tabs in different Vivaldi windows. When disconnected, Kreis opens the URL with your default browser instead.</p></section>
             <div className="bottom-actions"><button className="secondary" onClick={() => void persist({...settings, entries: DEFAULT_SETTINGS.entries})}><RotateCcw size={15}/> Restore sample entries</button><button className="primary" onClick={() => void closeSettings()}><Check size={16}/> Done</button></div>
           </div>
-          {draft && <div className="dialog-backdrop"><div className="edit-dialog" role="dialog" aria-modal="true" aria-label="Edit wheel entry"><div className="dialog-heading"><h2>{draft.id ? 'Edit entry' : 'Add entry'}</h2><button className="icon-button" onClick={() => setDraft(null)}><X/></button></div><div className="form-grid"><label>Label<input value={draft.title} maxLength={30} onChange={event => setDraft({...draft, title: event.target.value})} placeholder="My favorite tab" /></label><label>Type<select value={draft.type} onChange={event => setDraft({...draft,type: event.target.value as Entry['type']})}><option value="browser">Browser tab</option><option value="app">Windows application</option></select></label><label className="wide">{draft.type === 'browser' ? 'Website URL' : 'Executable name or full .exe path'}<input value={draft.target} onChange={event => setDraft({...draft,target: event.target.value})} placeholder={draft.type === 'browser' ? 'https://example.com/' : 'Code.exe'} /></label>{draft.type === 'browser' && <><label>Vivaldi profile<select value={draft.profile} onChange={event => setDraft({...draft,profile: event.target.value as Entry['profile']})}><option>Work</option><option>Personal</option></select></label><label>Tab matching<select value={draft.match} onChange={event => setDraft({...draft,match: event.target.value as Entry['match']})}><option value="prefix">URL path prefix (subpages too)</option><option value="exact">Exact URL (ignores hash)</option><option value="site">Website excluding /wp-admin/</option></select></label></>}<label>Icon<select value={draft.icon} onChange={event => setDraft({...draft,icon:event.target.value})}>{Object.keys(icons).map(name => <option key={name} value={name}>{name}</option>)}</select></label><label>Color<input className="color-input" type="color" value={draft.color} onChange={event => setDraft({...draft,color:event.target.value})}/></label></div><div className="dialog-actions"><button className="secondary" onClick={() => setDraft(null)}>Cancel</button><button className="primary" onClick={() => void saveEntry()}><Check size={16}/> Save entry</button></div></div></div>}
+          {draft && (
+            <div className="dialog-backdrop">
+              <div className="edit-dialog" role="dialog" aria-modal="true" aria-label="Edit wheel entry">
+                <div className="dialog-heading">
+                  <h2>{draft.id ? 'Edit entry' : draft.type === 'group' ? 'Add group' : 'Add shortcut'}</h2>
+                  <button className="icon-button" onClick={() => setDraft(null)}><X/></button>
+                </div>
+                <div className="form-grid">
+                  <label>Label
+                    <input value={draft.title} maxLength={30}
+                      onChange={event => setDraft({...draft, title: event.target.value})}
+                      placeholder={draft.type === 'group' ? 'IHM' : 'My favorite tab'}/>
+                  </label>
+                  <label>Type
+                    <select value={draft.type} disabled={Boolean(draft.id)}
+                      onChange={event => setDraft({...draft, type: event.target.value as Entry['type']})}>
+                      <option value="browser">Browser tab</option>
+                      <option value="app">Windows application</option>
+                      <option value="group">Group</option>
+                    </select>
+                  </label>
+                  {draft.type !== 'group' && (
+                    <>
+                      <label className="wide">{draft.type === 'browser' ? 'Website URL' : 'Executable name or full .exe path'}
+                        <input value={draft.target}
+                          onChange={event => setDraft({...draft, target: event.target.value})}
+                          placeholder={draft.type === 'browser' ? 'https://example.com/' : 'Code.exe'}/>
+                      </label>
+                      {draft.type === 'app' && (
+                        <label className="wide">Window title contains (optional)
+                          <input value={draft.windowTitle || ''}
+                            onChange={event => setDraft({...draft, windowTitle: event.target.value})}
+                            placeholder="For example: immaculate-heart-of-mary"/>
+                          <small className="helper">Leave blank to select from all windows. Matching a title focuses only that workspace.</small>
+                        </label>
+                      )}
+                      <label>Placement
+                        <select value={draft.groupId || ''}
+                          onChange={event => setDraft({...draft, groupId: event.target.value || undefined})}>
+                          <option value="">Main Kreis</option>
+                          {settings.entries.filter(entry => entry.type === 'group').map(group => (
+                            <option key={group.id} value={group.id}>{group.title}</option>
+                          ))}
+                        </select>
+                      </label>
+                      {draft.type === 'browser' && (
+                        <>
+                          <label>Vivaldi profile
+                            <select value={draft.profile}
+                              onChange={event => setDraft({...draft, profile: event.target.value as Entry['profile']})}>
+                              <option>Work</option><option>Personal</option>
+                            </select>
+                          </label>
+                          <label>Tab matching
+                            <select value={draft.match}
+                              onChange={event => setDraft({...draft, match: event.target.value as Entry['match']})}>
+                              <option value="prefix">URL path prefix (subpages too)</option>
+                              <option value="exact">Exact URL (ignores hash)</option>
+                              <option value="site">Website excluding /wp-admin/</option>
+                            </select>
+                          </label>
+                        </>
+                      )}
+                    </>
+                  )}
+                  <label>Icon
+                    <select value={draft.icon} onChange={event => setDraft({...draft, icon: event.target.value})}>
+                      {Object.keys(icons).map(name => <option key={name} value={name}>{name}</option>)}
+                    </select>
+                  </label>
+                  <label>Color
+                    <input className="color-input" type="color" value={draft.color}
+                      onChange={event => setDraft({...draft, color: event.target.value})}/>
+                  </label>
+                </div>
+                {draft.type === 'group' && <p className="helper">Once saved, edit any shortcut to assign it to this group.</p>}
+                {error && <p className="dialog-error" role="alert">{error}</p>}
+                <div className="dialog-actions">
+                  <button className="secondary" onClick={() => setDraft(null)}>Cancel</button>
+                  <button className="primary" onClick={() => void saveEntry()}><Check size={16}/> Save entry</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {!isReady && !error && <span className="sr-only">Loading Kreis...</span>}

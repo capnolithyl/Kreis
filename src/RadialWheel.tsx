@@ -18,6 +18,7 @@ type RadialWheelProps = {
   appearance: WheelAppearance;
   submenuTitle?: string;
   tabCount?: number;
+  countLabel?: string;
   busy: boolean;
   error: string;
   page: number;
@@ -116,7 +117,7 @@ function labelLines(label: string, count: number, fontSize: number): string[] {
 }
 
 export default function RadialWheel({
-  buttons, appearance, submenuTitle, tabCount, busy, error, page, pageCount,
+  buttons, appearance, submenuTitle, tabCount, countLabel = 'tabs', busy, error, page, pageCount,
   onBack, onSettings, onClose, onPageChange
 }: RadialWheelProps) {
   const isSubmenu = Boolean(submenuTitle);
@@ -211,7 +212,7 @@ export default function RadialWheel({
 
       {isSubmenu && (
         <p className="wheel-subheading" title={submenuTitle}>
-          {submenuTitle} <span>· {tabCount} tabs</span>
+          {submenuTitle} <span>· {tabCount} {countLabel}</span>
         </p>
       )}
 

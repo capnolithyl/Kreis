@@ -25,6 +25,18 @@ fn focus_application(executable: String) -> Result<(), String> {
     { let _ = executable; Err("Kreis currently supports Windows only".into()) }
 }
 
+#[cfg(windows)]
+#[tauri::command]
+fn list_application_windows(executable: String) -> Result<Vec<native_windows::AppWindow>, String> {
+    native_windows::list_application_windows(&executable)
+}
+
+#[cfg(windows)]
+#[tauri::command]
+fn focus_application_window(executable: String, window_id: String) -> Result<(), String> {
+    native_windows::focus_application_window(&executable, &window_id)
+}
+
 fn validate_browser(url: &str, profile: &str, mode: &str) -> Result<(), String> {
     let parsed = url::Url::parse(url).map_err(|_| "Invalid website URL")?;
     if !matches!(parsed.scheme(), "http" | "https") {
@@ -118,7 +130,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![pairing_key, connected_profiles, focus_application, activate_browser, query_browser_tabs, focus_browser_tab, open_browser_tab, toggle_at_cursor, hide_wheel])
+        .invoke_handler(tauri::generate_handler![pairing_key, connected_profiles, focus_application, list_application_windows, focus_application_window, activate_browser, query_browser_tabs, focus_browser_tab, open_browser_tab, toggle_at_cursor, hide_wheel])
         .setup(|app| {
             let token = bridge::load_or_create_token(app.handle()).map_err(std::io::Error::other)?;
             let state = Arc::new(Bridge::new(token));
