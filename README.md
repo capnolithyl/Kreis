@@ -4,7 +4,7 @@ Kreis is a Windows tray utility that shows a **cursor-centered radial launcher**
 
 Built with **Tauri 2 + Rust + React + TypeScript**. The browser companion is an unpacked **Manifest V3 Chromium extension**. Both live in this one repository.
 
-## What v0.1 does
+## What Kreis does
 
 - Starts hidden in the Windows tray and shows a round menu around the cursor.
 - Registers **Ctrl+Space** by default, falling back to **Ctrl+Alt+Space** if unavailable.
@@ -13,6 +13,8 @@ Built with **Tauri 2 + Rust + React + TypeScript**. The browser companion is an 
 - Focus an existing Windows app window by executable name, or launch it when not running.
 - Via the paired Vivaldi extension, find an existing URL, activate its tab, focus its window, or open a new tab in the correct Vivaldi profile.
 - Without an extension connection, opens links in the **system default browser** (cannot guarantee profile selection).
+- For browser shortcuts with **more than one matching tab**, replaces the main wheel with a **sub-Kreis** displaying real tab titles. One match focuses directly; zero matches open the configured URL.
+- Sub-Kreis has **Back** in the center, **New tab** as an outer choice, and seven existing tabs per page. Paginate for more; Escape closes Kreis.
 
 ## Local Windows development
 
@@ -44,6 +46,17 @@ The default shortcut `Control+Space` is not globally reserved by Windows, but ot
 
 The provided IHM / Figma entries are **sample shortcuts**; edit or delete them to suit your own projects. Browser tab switching requires the extension. Windows executable launching needs an executable on PATH or a full `.exe` path.
 
+## Nested wheels and multiple browser tabs
+
+1. Add a browser entry such as **ChatGPT** with URL `https://chatgpt.com/`, **Work** or **Personal** profile, and **URL path prefix** match mode. A root URL matches the whole website; a deeper URL (like `/wp-admin/`) groups only that branch.
+2. Open at least two matching tabs in that same Vivaldi profile, in any windows, stacks, or workspaces.
+3. Press the global shortcut, select the browser entry, and Kreis shows a sub-wheel with tab titles. Selecting one focuses that **exact tab** by ID. The main wheel is replaced in-place.
+4. Select **Back** in the center to return, **New tab** to deliberately create another tab, or **Escape** to hide Kreis. Each sub-wheel shows up to seven tabs at once plus New tab, with page navigation if needed.
+
+The browser tab discovery is scoped to the selected Vivaldi profile. If the companion hasn't been updated or disconnects, Kreis falls back to the original browser shortcut action, after a short timeout.
+
+**Updating:** This feature requires both the updated **Windows app** and the updated **browser extension**. After merging, run **Actions → Build Windows installer**, install it, update the unpacked `extension/` folder, and click **Reload** in `vivaldi://extensions` in both profiles. Your pairing key and saved shortcuts are preserved.
+
 ## Debugging a tab that opens twice
 
 After clicking an entry in Kreis, open the **Kreis extension popup** in that Vivaldi profile. The new **Tab matching diagnostics** section reports how many tabs the browser exposes, how many have readable URLs, and whether the shortcut matched its host or path. Clicking **Scan tabs now** refreshes the inventory. Only hostnames and paths appear in the report, not query strings or the pairing key.
@@ -52,7 +65,7 @@ The companion extension uses ES-module service workers starting with v0.1.1. Aft
 
 ## Current limitations
 
-- Windows only; the wheel supports up to 12 entries and no nested wheels yet.
+- Windows only; the main wheel supports up to 12 configured entries. Nested tab wheels support pagination.
 - The menu is click-to-select; flick-to-release gesture navigation is planned for later.
 - The bridge currently supports one connection per profile name. Duplicate `Work` labels override each other; use one copy per profile.
 - A browser that is closed or has a suspended extension causes system-default-browser fallback.
