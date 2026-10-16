@@ -18,9 +18,22 @@ Built with **Tauri 2 + Rust + React + TypeScript**. The browser companion is an 
 - For browser shortcuts with **more than one matching tab**, replaces the main wheel with a **sub-Kreis** displaying real tab titles. One match focuses directly; zero matches open the configured URL.
 - Sub-Kreis has **Back** in the center, **New tab** as an outer choice, and seven existing tabs per page. Paginate for more; Escape closes Kreis.
 
+## Settings category wheel
+
+Click the **Settings** button in the center of the main Kreis (or select **Settings** from the tray menu) to open another cursor-centered Kreis. Its categories are:
+
+- **Hotkey:** configure and apply the global keyboard shortcut.
+- **Typography:** choose the wheel font family and text sizes.
+- **Shortcuts & Groups:** add, edit, move and organize launcher entries into groups.
+- **Connection:** view Work and Personal Vivaldi connection status, refresh or copy the pairing key.
+
+Choosing a category opens a focused settings page sized for that category, rather than an all-in-one scrolling screen. Click **Back**, press **Escape**, or use **Back to settings** to return to the settings wheel at its original location. Its center button returns to the main wheel. Closing the settings page via X hides Kreis.
+
+Your existing shortcuts, groups, styles, browser profiles and pairing token are retained. Only the **Windows app** changes; you do not need to update the Vivaldi extension. The settings categories are defined in `src/settingsCategories.ts` for easy addition of future sections.
+
 ## Organize shortcuts into groups
 
-Open **Settings → Shortcuts and groups → Add group** and create a group named **IHM**, choosing a color and icon. Then **Edit** each existing shortcut (Frontend, Backend, Figma, VS Code, ChatGPT), choose **Placement → IHM**, and save. They disappear from the main wheel and appear inside the IHM group, preserving their URLs, profiles and matching modes.
+Open **Settings → Shortcuts & Groups → Add group** and create a group named **IHM**, choosing a color and icon. Then **Edit** each existing shortcut (Frontend, Backend, Figma, VS Code, ChatGPT), choose **Placement → IHM**, and save. They disappear from the main wheel and appear inside the IHM group, preserving their URLs, profiles and matching modes.
 
 Selecting **IHM → Frontend** still checks all currently open tabs that match the IHM frontend URL: zero opens the configured URL, one focuses directly, and several open a tab-title wheel. Selecting **IHM → VS Code** similarly opens a titled native-window wheel if multiple VS Code windows are open. To target a **specific workspace directly**, edit the IHM VS Code entry and set **Window title contains** to a distinctive part of that VS Code window title, for example `immaculate-heart-of-mary`. Leave it blank for the full app-window picker. If the requested workspace is closed, Kreis shows an error rather than accidentally focusing another project. Back takes you to the previous level, and Escape closes Kreis from any depth.
 
@@ -40,7 +53,7 @@ The filter is entirely inside the Windows app; **no Vivaldi extension update is 
 
 ## Wheel appearance
 
-Open Kreis **Settings → Wheel typography** to customize the radial menu without affecting the saved shortcuts or Vivaldi pairing. Choose from installed Windows font families and adjust **Shortcut labels (10–18 px)** and **Center label (13–24 px)**. The live preview updates immediately; click **Apply typography** to save the choice. The same font and sizes are used for nested tab wheels. If a font isn't installed, Kreis falls back to Segoe UI.
+Open Kreis **Settings → Typography** to customize the radial menu without affecting the saved shortcuts or Vivaldi pairing. Choose from installed Windows font families and adjust **Shortcut labels (10–18 px)** and **Center label (13–24 px)**. The live preview updates immediately; click **Apply typography** to save the choice. The same font and sizes are used for nested tab wheels. If a font isn't installed, Kreis falls back to Segoe UI.
 
 The wheel now opens with a slower, staggered spin-up (roughly 0.7–0.9 seconds) and has no gaps between shortcut wedges. Windows' **Reduce motion** preference is respected.
 
