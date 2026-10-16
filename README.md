@@ -18,6 +18,18 @@ Built with **Tauri 2 + Rust + React + TypeScript**. The browser companion is an 
 - For browser shortcuts with **more than one matching tab**, replaces the main wheel with a **sub-Kreis** displaying real tab titles. One match focuses directly; zero matches open the configured URL.
 - Sub-Kreis has **Back** in the center, **New tab** as an outer choice, and seven existing tabs per page. Paginate for more; Escape closes Kreis.
 
+## Windows File Explorer folders
+
+Add a shortcut in **Settings → Shortcuts & Groups → Add shortcut**, choose **Windows folder**, and enter a directory like `%USERPROFILE%\\Downloads`, `%OneDrive%\\Documents`, `C:\\Projects\\IHM`, or `~\\Downloads`. Assign it to a project group if useful. The folder must exist and be accessible when opened. Existing browser/app shortcuts remain unchanged.
+
+When invoked, Kreis tries, in order:
+
+1. Find an **already selected / active File Explorer folder tab** matching the exact directory via Windows Shell automation. To avoid accidentally focusing a different Explorer tab, Kreis also verifies the current window caption before reusing it. Windows does **not** expose a reliable public API for selecting arbitrary background Explorer tabs, so hidden background matches are not promised.
+2. If another File Explorer window is running on **Windows 11 22H2+**, activate it and use its native keyboard shortcuts **Ctrl+T**, **Ctrl+L**, type the folder path, and press Enter to navigate in a **new tab**, leaving its previous tab alone.
+3. If File Explorer isn't running, the Windows version lacks Explorer tabs, or Explorer cannot safely receive focus, launch the folder in a **new Explorer window**.
+
+The native implementation checks the foreground window throughout tab navigation. It **never uses the clipboard** for folder paths and does not change File Explorer's system settings. The tab reuse is a best-effort Windows 11 integration because Microsoft doesn't publish a supported tab-management API; report any Explorer differences with a screenshot and your Windows version. Folder shortcuts are local only and require no Vivaldi extension update.
+
 ## Settings category wheel
 
 Click the **Settings** button in the center of the main Kreis (or select **Settings** from the tray menu) to open another cursor-centered Kreis. Its categories are:
