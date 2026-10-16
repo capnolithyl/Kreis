@@ -1,6 +1,5 @@
 //! Windows-specific cursor lookup and application focusing.
 use std::ffi::OsStr;
-use std::os::windows::ffi::OsStrExt;
 use windows_sys::Win32::{
     Foundation::{CloseHandle, BOOL, HWND, LPARAM, POINT},
     System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION},
@@ -28,14 +27,14 @@ struct Search<'a> {
 unsafe extern "system" fn find_window(hwnd: HWND, data: LPARAM) -> BOOL {
     // SAFETY: EnumWindows passes the address of Search until enumeration ends.
     let search = unsafe { &mut *(data as *mut Search<'_>) };
-    if unsafe { IsWindowVisible(hwnd) } == 0 || unsafe { GetWindow(hwnd, GW_OWNER) } != 0 {
+    if unsafe { IsWindowVisible(hwnd) } == 0 || unsafe { GetWindow(hwnd, GW_OWNER) } != std::ptr::null_mut() {
         return 1;
     }
     let mut pid: u32 = 0;
     unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
     if pid == 0 { return 1; }
     let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
-    if handle == 0 { return 1; }
+    if handle.is_null() { return 1; }
     let mut buffer = [0u16; 1024];
     let mut size = buffer.len() as u32;
     let ok = unsafe { QueryFullProcessImageNameW(handle, 0, buffer.as_mut_ptr(), &mut size) } != 0;
