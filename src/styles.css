@@ -1,23 +1,65 @@
-:root { font-family: Inter, 'Segoe UI', system-ui, sans-serif; color: #f5f7fc; background: transparent; font-synthesis: none; font-smooth: always; }
+:root { font-family: Inter, 'Segoe UI', system-ui, sans-serif; color: #f5f7fc; background: transparent; font-synthesis: none; }
 * { box-sizing: border-box; }
-html, body, #root { width: 100%; height: 100%; padding: 0; margin: 0; overflow: hidden; background: transparent; }
+html, body, #root { width: 100%; height: 100%; padding: 0; margin: 0; overflow: hidden; background: transparent !important; }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
-button:disabled { opacity: .35; cursor: not-allowed; }
-button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #99aafc; outline-offset: 2px; }
-.sr-only { position:absolute; left:-9999px; }
-.wheel-screen { height: 100%; width: 100%; position: relative; }
-.wheel { width: 600px; height: 600px; position: relative; isolation: isolate; }
-.outer-orbit { position: absolute; width: 455px; height: 455px; border: 1px dashed rgba(180,190,230,.26); left: 72.5px; top: 72.5px; border-radius: 50%; pointer-events: none; box-shadow: 0 0 120px 0 #252b5480 inset; }
-.wheel-item { position: absolute; transform: translate(-50%,-50%); width: 103px; height: 103px; border: 1px solid color-mix(in srgb, var(--accent) 70%, #ffffff 20%); background: linear-gradient(135deg, color-mix(in srgb,var(--accent) 50%,#0f1829 50%),#101725 83%); color: #f4f7fd; border-radius: 50%; box-shadow: 0 6px 24px #050812bb, 0 0 0 5px #12172470; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; transition: transform .13s ease, filter .13s ease, box-shadow .13s ease; }
-.wheel-item:hover, .wheel-item:focus-visible { transform: translate(-50%,-50%) scale(1.12); filter: brightness(1.2); box-shadow: 0 0 25px color-mix(in srgb,var(--accent) 55%,transparent), 0 7px 30px #030510cc; z-index: 2; }
-.wheel-icon { display: grid; place-items: center; }
-.wheel-label { font-size: 11px; letter-spacing: .2px; font-weight: 700; max-width: 90px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wheel-center { position: absolute; left: 220px; top: 220px; width: 160px; height: 160px; border-radius: 50%; background: radial-gradient(circle at 30% 25%,#3d4777,#20243b 65%,#141826); border: 2px solid #858ee4; box-shadow: 0 4px 34px #090b18,0 0 38px #4b5b9852; color: #cdd4ff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; font-size: 12px; font-weight: 800; letter-spacing: 2px; }
-.wheel-center:hover { background: radial-gradient(circle at 30% 25%,#5362a1,#292c4b 70%); }
-.kreis-mark { font-size: 42px; line-height: 1.2; font-weight: 850; color: #fff; }
-.close-wheel { position:absolute; right: 6px; top: 7px; color: #c8cfec; background: #182033; border: 1px solid #3f4c64; border-radius: 50%; width: 33px; height: 33px; display:grid; place-items:center; }
-.wheel-error { position: absolute; left: 95px; bottom: 0; right: 95px; padding: 10px; background: #5a2537; border-radius: 10px; font-size: 12px; text-align: center; }
+button:disabled { opacity: .42; cursor: not-allowed; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #b6cafa; outline-offset: 3px; }
+.sr-only { position: absolute; left: -9999px; }
+
+/* Launcher: the square Tauri surface stays 100% transparent around the SVG ring.
+   Nothing in this section paints a rectangular background or shadow. */
+.wheel-screen { width: 100%; height: 100%; position: relative; background: transparent; }
+.wheel { width: 600px; height: 600px; position: relative; isolation: isolate; background: transparent; }
+.wheel-enter { position: absolute; inset: 0; transform-origin: 50% 50%; animation: wheel-reveal 260ms cubic-bezier(.16, 1, .3, 1) both; }
+.wheel-svg { display: block; position: absolute; inset: 0; overflow: visible; }
+.wheel-ambient { fill: #0b1423; fill-opacity: .68; stroke: rgba(124, 155, 194, .38); stroke-width: 1.3; pointer-events: none; }
+.wheel-segment { cursor: pointer; opacity: 0; outline: none; transform-origin: 300px 300px; animation: wedge-reveal 310ms cubic-bezier(.16, 1, .3, 1) both; animation-delay: calc(var(--segment-index) * 18ms); }
+.wheel-segment-base { fill: url(#kreis-segment-base); stroke: #122337; stroke-width: 2.8; transition: stroke 160ms ease, filter 160ms ease; }
+.wheel-segment-tint { fill: var(--accent); fill-opacity: .16; stroke: var(--accent); stroke-opacity: .22; stroke-width: 1; pointer-events: none; transition: fill-opacity 170ms ease, stroke-opacity 170ms ease; }
+.wheel-segment-content { color: #f5f8ff; transition: transform 170ms cubic-bezier(.2,.8,.2,1); transform-box: fill-box; transform-origin: center; }
+.wheel-segment-icon { fill: none; color: #f5f8ff; filter: drop-shadow(0 1px 2px #0006); transition: color 170ms ease; }
+.wheel-segment-label { fill: #f1f5fd; font-size: 12px; font-weight: 650; letter-spacing: .05px; dominant-baseline: auto; paint-order: stroke fill; stroke: #0e1725; stroke-width: 2.3px; stroke-linejoin: round; }
+.wheel-segment:hover .wheel-segment-tint, .wheel-segment:focus-visible .wheel-segment-tint { fill-opacity: .37; stroke-opacity: .8; }
+.wheel-segment:hover .wheel-segment-base, .wheel-segment:focus-visible .wheel-segment-base { stroke: #bed3ed; stroke-width: 2.4; filter: brightness(1.18); }
+.wheel-segment:hover .wheel-segment-content, .wheel-segment:focus-visible .wheel-segment-content { transform: translateY(-3px) scale(1.05); }
+.wheel-segment:focus-visible .wheel-segment-base { stroke: #fff; stroke-width: 3.8; }
+.wheel-segment[aria-disabled="true"] { cursor: progress; }
+.wheel-inner-halo { stroke: #6f91ba; stroke-opacity: .52; stroke-width: 1.4; }
+.wheel-inner-line { fill: none; stroke: #dae9ff; stroke-opacity: .11; stroke-width: 3; }
+
+/* The center remains a real HTML button for pointer and keyboard access. */
+.wheel-center { position: absolute; left: 201px; top: 201px; width: 198px; height: 198px; border-radius: 50%; border: 0; background: transparent; color: #f5f8ff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; text-align: center; transition: background 170ms ease, box-shadow 170ms ease, transform 170ms ease; }
+.wheel-center:hover, .wheel-center:focus-visible { background: rgba(106, 141, 181, .13); box-shadow: inset 0 0 26px #b7d9fd13; transform: scale(1.035); }
+.wheel-center-name { font-size: 16px; font-weight: 800; letter-spacing: 2.2px; }
+.wheel-center-description { font-size: 11px; font-weight: 500; letter-spacing: .3px; color: #b5c5dd; }
+.wheel-center .sub-context { font-size: 11px; font-weight: 500; letter-spacing: 0; color: #b6c8e0; max-width: 156px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.wheel-subheading { position: absolute; left: 130px; right: 130px; top: 12px; margin: 0; text-align: center; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; color: #e1ebf8; font-size: 12px; font-weight: 750; pointer-events: none; }
+.wheel-subheading span { color: #a9bad2; font-weight: 450; }
+
+/* Controls remain inside the transparent 600x600 surface, away from wheel hit targets. */
+.close-wheel { position: absolute; right: 22px; top: 21px; border: 1px solid #71839f5c; background: #172235cf; color: #b9c9dd; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; transition: background 150ms ease, transform 150ms ease; }
+.close-wheel:hover { background: #35465d; transform: scale(1.08); }
+.wheel-page-controls { position: absolute; left: 80px; right: 80px; bottom: 7px; display: flex; align-items: center; justify-content: space-between; color: #d2dded; font-size: 11px; }
+.wheel-page-controls button { background: #1a293d; color: #ecf3ff; border: 1px solid #637b9a99; border-radius: 9px; padding: 6px 12px; transition: background 150ms ease; }
+.wheel-page-controls button:hover:not(:disabled) { background: #354c6b; }
+.wheel-loading, .wheel-error { position: absolute; left: 140px; right: 140px; bottom: 6px; text-align: center; font-size: 11px; line-height: 1.4; border-radius: 9px; padding: 7px 10px; pointer-events: none; }
+.wheel-loading { color: #e7f1ff; background: #1a2941ec; }
+.wheel-error { color: #ffe1e6; background: #643044ec; bottom: 2px; }
+
+@keyframes wheel-reveal {
+  from { opacity: 0; transform: scale(.9) rotate(-5deg); filter: blur(5px); }
+  to { opacity: 1; transform: scale(1) rotate(0deg); filter: blur(0); }
+}
+@keyframes wedge-reveal {
+  from { opacity: 0; transform: rotate(-7deg) scale(.9); }
+  to { opacity: 1; transform: rotate(0deg) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wheel-enter, .wheel-segment { animation: none; opacity: 1; transform: none; }
+  .wheel-segment *, .wheel-center, .close-wheel { transition: none !important; }
+}
+
 .settings-screen { width:100%; height:100%; padding: 8px; }
 .settings-shell { height:100%; width:100%; display:flex; flex-direction:column; border-radius: 18px; overflow:hidden; background: #111622; border:1px solid #3b4761; box-shadow: 0 15px 60px #03050cb5; }
 .settings-header { background: radial-gradient(circle at 80% 0,#28375d,#171c2e 65%); padding: 24px 30px 19px; border-bottom:1px solid #303a51; display:flex; align-items:flex-start; justify-content:space-between; }
@@ -72,13 +114,3 @@ input::placeholder { color: #687692; }
 .form-grid .color-input {height:42px; padding:5px;}
 .dialog-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:23px; }
 
-/* Nested tab navigation preserves the main radial geometry. */
-.wheel-subheading { position: absolute; top: 135px; left: 160px; right: 160px; color: #bcc8e7; font-size: 12px; font-weight: 700; letter-spacing: .5px; text-align: center; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; margin: 0; pointer-events: none; }
-.wheel-center .sub-context { font-size: 10px; font-weight: 650; letter-spacing: 0; color: #b9c5e6; max-width: 132px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wheel-page-controls { position: absolute; left: 12px; right: 12px; bottom: 4px; display: flex; justify-content: space-between; align-items: center; gap: 14px; color: #c6cee9; font-size: 11px; z-index: 3; }
-.wheel-page-controls button { background: #1f2a42; border: 1px solid #516282; border-radius: 10px; padding: 6px 12px; color: #e7edff; font-size: 12px; }
-.wheel-page-controls button:hover:not(:disabled) { background: #354468; }
-.wheel-loading { position: absolute; left: 210px; right: 210px; bottom: 3px; font-size: 11px; text-align: center; color: #b6c9e1; pointer-events: none; }
-
-.wheel-item--tab { gap: 6px; }
-.wheel-tab-label { white-space: normal; line-height: 1.2; max-width: 91px; max-height: 44px; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; }
