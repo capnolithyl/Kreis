@@ -619,6 +619,7 @@ export default function App() {
                   </label>
                 </div>
                 {draft.type === 'group' && <p className="helper">Once saved, edit any shortcut to assign it to this group.</p>}
+                {error && <p className="dialog-error" role="alert">{error}</p>}
                 <div className="dialog-actions">
                   <button className="secondary" onClick={() => setDraft(null)}>Cancel</button>
                   <button className="primary" onClick={() => void saveEntry()}><Check size={16}/> Save entry</button>
