@@ -304,74 +304,139 @@ export default function App() {
     } catch (cause) { setError(String(cause)); }
   }
 
+  function childrenFor(groupId: string) {
+    return settings.entries.filter(entry => entry.type !== 'group' && entry.groupId === groupId);
+  }
+
   async function saveEntry() {
     if (!draft) return;
     const problem = validateEntry(draft);
     if (problem) return setError(problem);
-    if (!draft.id && settings.entries.length >= 12) return setError('The first wheel supports up to 12 entries.');
-    const entry = { ...draft, id: draft.id || crypto.randomUUID(), title: draft.title.trim(), target: draft.target.trim() };
-    const entries = draft.id ? settings.entries.map(current => current.id === draft.id ? entry : current) : [...settings.entries, entry];
+    const groups = settings.entries.filter(entry => entry.type === 'group');
+    if (draft.type !== 'group' && draft.groupId && !groups.some(group => group.id === draft.groupId)) {
+      return setError('Select an existing group.');
+    }
+    const entry: Entry = {
+      ...draft,
+      id: draft.id || crypto.randomUUID(),
+      title: draft.title.trim(),
+      target: draft.type === 'group' ? '' : draft.target.trim(),
+      groupId: draft.type === 'group' ? undefined : draft.groupId || undefined
+    };
+    const entries = draft.id
+      ? settings.entries.map(current => current.id === draft.id ? entry : current)
+      : [...settings.entries, entry];
+    const rootCount = entries.filter(item => !item.groupId).length;
+    if (rootCount > MAX_ITEMS_PER_WHEEL) return setError('The main wheel can hold 12 shortcuts. Move an entry into a group first.');
+    for (const group of entries.filter(item => item.type === 'group')) {
+      if (entries.filter(item => item.groupId === group.id).length > MAX_ITEMS_PER_WHEEL) {
+        return setError(`The ${group.title} group already has 12 shortcuts.`);
+      }
+    }
     try { await persist({ ...settings, entries }); setDraft(null); setError(''); }
     catch (cause) { setError(String(cause)); }
   }
 
   async function deleteEntry(id: string) {
-    try { await persist({ ...settings, entries: settings.entries.filter(entry => entry.id !== id) }); }
+    const removed = settings.entries.find(entry => entry.id === id);
+    if (!removed) return;
+    let entries = settings.entries.filter(entry => entry.id !== id);
+    if (removed.type === 'group') {
+      // Keep users' shortcuts when a group is removed.
+      entries = entries.map(entry =>
+        entry.groupId === id ? { ...entry, groupId: undefined } : entry
+      );
+      if (entries.filter(entry => !entry.groupId).length > MAX_ITEMS_PER_WHEEL) {
+        return setError('Cannot remove this group: the main wheel would have over 12 items. Move or remove some members first.');
+      }
+    }
+    try { await persist({ ...settings, entries }); setError(''); }
     catch (cause) { setError(String(cause)); }
   }
 
-  async function moveEntry(index: number, delta: number) {
-    const other = index + delta;
-    if (other < 0 || other >= settings.entries.length) return;
+  async function moveEntry(id: string, delta: number) {
+    const item = settings.entries.find(entry => entry.id === id);
+    if (!item) return;
+    const siblings = settings.entries.filter(entry => (entry.groupId || '') === (item.groupId || ''));
+    const index = siblings.findIndex(entry => entry.id === id);
+    const next = siblings[index + delta];
+    if (!next) return;
     const entries = [...settings.entries];
-    [entries[index], entries[other]] = [entries[other], entries[index]];
-    try { await persist({ ...settings, entries }); }
+    const from = entries.findIndex(entry => entry.id === id);
+    const to = entries.findIndex(entry => entry.id === next.id);
+    [entries[from], entries[to]] = [entries[to], entries[from]];
+    try { await persist({ ...settings, entries }); setError(''); }
     catch (cause) { setError(String(cause)); }
   }
 
-  const pageCount = submenu ? Math.ceil(submenu.tabs.length / tabsPerPage) : 1;
-  const visibleTabs = submenu ? submenu.tabs.slice(tabPage * tabsPerPage, (tabPage + 1) * tabsPerPage) : [];
-  const wheelButtons: WheelOption[] = submenu
-    ? [
-        ...visibleTabs.map(tab => ({
-          key: `tab-${tab.id}`,
-          title: tab.title || 'Untitled tab',
-          color: submenu.entry.color,
-          icon: submenu.entry.icon,
-          tooltip: tab.title || 'Untitled tab',
-          onSelect: () => void selectTab(tab)
-        })),
-        {
-          key: 'new-tab',
-          title: 'New tab',
-          color: '#3b846d',
-          icon: 'plus',
-          tooltip: `Open a new ${submenu.entry.title} tab`,
-          onSelect: () => void openNewTab(),
-          isNew: true
-        }
-      ]
-    : settings.entries.map(entry => ({
-        key: entry.id, title: entry.title, color: entry.color, icon: entry.icon,
-        tooltip: `${entry.title} (${entry.type === 'browser' ? entry.profile : 'Windows'})`,
-        onSelect: () => void selectEntry(entry)
-      }));
+  const groupIds = new Set(settings.entries.filter(entry => entry.type === 'group').map(entry => entry.id));
+  const rootEntries = settings.entries.filter(entry => !entry.groupId || !groupIds.has(entry.groupId));
+  const arrangedEntries = rootEntries.flatMap(entry =>
+    entry.type === 'group' ? [entry, ...childrenFor(entry.id)] : [entry]
+  );
+  const activeLevel = levels[levels.length - 1];
+  const currentOptions = activeLevel?.kind === 'group'
+    ? childrenFor(activeLevel.entry.id) : rootEntries;
+
+  const pageCount = activeLevel?.kind === 'tabs'
+    ? Math.ceil(activeLevel.tabs.length / tabsPerPage)
+    : activeLevel?.kind === 'apps'
+      ? Math.ceil(activeLevel.windows.length / 8) : 1;
+  const wheelButtons: WheelOption[] =
+    activeLevel?.kind === 'tabs'
+      ? [
+          ...activeLevel.tabs.slice(tabPage * tabsPerPage, (tabPage + 1) * tabsPerPage)
+            .map(tab => ({
+              key: `tab-${tab.id}`, title: tab.title || 'Untitled tab',
+              color: activeLevel.entry.color, icon: activeLevel.entry.icon,
+              tooltip: tab.title || 'Untitled tab',
+              onSelect: () => void selectTab(tab, activeLevel.entry)
+            })),
+          {
+            key: 'new-tab', title: 'New tab', color: '#3b846d',
+            icon: 'plus', isNew: true,
+            tooltip: `Open a new ${activeLevel.entry.title} tab`,
+            onSelect: () => void openNewTab(activeLevel.entry)
+          }
+        ]
+      : activeLevel?.kind === 'apps'
+        ? activeLevel.windows.slice(tabPage * 8, (tabPage + 1) * 8)
+          .map(appWindow => ({
+            key: `window-${appWindow.id}`, title: appWindow.title,
+            color: activeLevel.entry.color, icon: activeLevel.entry.icon,
+            tooltip: appWindow.title,
+            onSelect: () => void selectAppWindow(appWindow, activeLevel.entry)
+          }))
+        : currentOptions.map(entry => ({
+            key: entry.id, title: entry.title, color: entry.color, icon: entry.icon,
+            tooltip: entry.type === 'group' ? `Open ${entry.title} group`
+              : `${entry.title} (${entry.type === 'browser' ? entry.profile : 'Windows'})`,
+            onSelect: () => void selectEntry(entry)
+          }));
+
+  const levelCount = activeLevel?.kind === 'group'
+    ? currentOptions.length
+    : activeLevel?.kind === 'tabs' ? activeLevel.tabs.length
+      : activeLevel?.kind === 'apps' ? activeLevel.windows.length : 0;
+  const levelCountLabel = activeLevel?.kind === 'group' ? 'shortcuts'
+    : activeLevel?.kind === 'apps' ? 'windows' : 'tabs';
 
   return (
     <main className={screen === 'wheel' ? 'wheel-screen' : 'settings-screen'}>
       {screen === 'wheel' ? (
         <RadialWheel
-          key={submenu ? `sub-${submenu.entry.id}-${tabPage}-${wheelEpoch}` : `main-${wheelEpoch}`}
+          key={activeLevel ? `${activeLevel.kind}-${activeLevel.entry.id}-${tabPage}-${wheelEpoch}` : `main-${wheelEpoch}`}
           buttons={wheelButtons}
           appearance={settings.appearance}
-          submenuTitle={submenu?.entry.title}
-          tabCount={submenu?.tabs.length}
+          submenuTitle={activeLevel?.entry.title}
+          tabCount={levelCount}
+          countLabel={levelCountLabel}
           busy={busy}
           error={error}
           page={tabPage}
           pageCount={pageCount}
           onSettings={() => void openSettings()}
-          onBack={() => { setSubmenu(null); setTabPage(0); setError(''); }}
+          onBack={backOneLevel}
           onClose={() => void closeLauncher()}
           onPageChange={setTabPage}
         />
