@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Entry } from './types';
+import type { Entry, Profile } from './types';
+
+export type BrowserTab = { id: number; windowId: number; title: string };
 
 export type OpenResult = { openedIn: 'browser-extension' | 'default-browser' | 'desktop-app'; details?: string };
 
@@ -15,6 +17,15 @@ export async function launch(entry: Entry): Promise<OpenResult> {
     ? { openedIn: 'browser-extension' }
     : { openedIn: 'default-browser', details: `The ${entry.profile} Vivaldi extension is not connected. Opened with your system default browser.` };
 }
+
+/** Null indicates an old or disconnected extension. The caller can use the legacy action. */
+export const getMatchingTabs = (entry: Entry) => invoke<BrowserTab[] | null>('query_browser_tabs', {
+  url: entry.target, profile: entry.profile, matchMode: entry.match
+});
+export const focusBrowserTab = (profile: Profile, tabId: number) =>
+  invoke<void>('focus_browser_tab', { profile, tabId });
+export const openNewBrowserTab = (entry: Entry) =>
+  invoke<void>('open_browser_tab', { url: entry.target, profile: entry.profile });
 
 export const getProfiles = () => invoke<string[]>('connected_profiles');
 export const getPairingKey = () => invoke<string>('pairing_key');
