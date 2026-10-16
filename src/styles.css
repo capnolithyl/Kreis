@@ -79,3 +79,6 @@ input::placeholder { color: #687692; }
 .wheel-page-controls button { background: #1f2a42; border: 1px solid #516282; border-radius: 10px; padding: 6px 12px; color: #e7edff; font-size: 12px; }
 .wheel-page-controls button:hover:not(:disabled) { background: #354468; }
 .wheel-loading { position: absolute; left: 210px; right: 210px; bottom: 3px; font-size: 11px; text-align: center; color: #b6c9e1; pointer-events: none; }
+
+.wheel-item--tab { gap: 6px; }
+.wheel-tab-label { white-space: normal; line-height: 1.2; max-width: 91px; max-height: 44px; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; }
