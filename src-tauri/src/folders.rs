@@ -3,7 +3,7 @@
 //! new tabs use Explorer's Ctrl+T and address bar, with a safe new-window fallback.
 use std::{
     ffi::OsStr,
-    os::windows::ffi::OsStrExt,
+    os::windows::{ffi::OsStrExt, process::CommandExt},
     path::{Path, PathBuf},
     process::Command,
     thread,
@@ -157,6 +157,7 @@ try {
     let output = Command::new("powershell.exe")
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
         .env("KREIS_FOLDER_QUERY", folder.as_os_str())
+        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW: no flashing PowerShell console
         .output()
         .ok()?;
     if !output.status.success() { return None; }
@@ -223,8 +224,16 @@ fn type_folder_path(path: &Path) -> bool {
                 }
             },
         };
-        let mut up = key;
-        unsafe { up.Anonymous.ki.dwFlags |= KEYEVENTF_KEYUP; }
+        let up = INPUT {
+            r#type: INPUT_KEYBOARD,
+            Anonymous: INPUT_0 {
+                ki: KEYBDINPUT {
+                    wVk: 0, wScan: character,
+                    dwFlags: KEYEVENTF_UNICODE | KEYEVENTF_KEYUP,
+                    time: 0, dwExtraInfo: 0,
+                },
+            },
+        };
         input.extend([key, up]);
     }
     // Bound allocations and input synthesis, even for very long paths.
