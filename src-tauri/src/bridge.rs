@@ -1,25 +1,97 @@
 //! Loopback-only, paired WebSocket bridge to the Vivaldi extension.
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
-use std::{collections::HashMap, sync::{Arc, Mutex}};
+use std::{collections::HashMap, sync::{Arc, Mutex}, time::Duration};
 use tauri::Manager;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tokio::sync::{mpsc::{unbounded_channel, UnboundedSender}, oneshot};
+use tokio::time::timeout;
 use tokio_tungstenite::{accept_hdr_async, tungstenite::{handshake::server::ErrorResponse, http::StatusCode, Message}};
 
 pub const BRIDGE_PORT: u16 = 43991;
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserTab {
+    pub id: i32,
+    pub window_id: i32,
+    pub title: String,
+}
+
+struct PendingLookup {
+    profile: String,
+    sender: oneshot::Sender<Vec<BrowserTab>>,
+}
+
 pub struct Bridge {
     pub token: String,
     pub clients: Mutex<HashMap<String, UnboundedSender<String>>>,
+    pending: Mutex<HashMap<String, PendingLookup>>,
 }
 
 impl Bridge {
-    pub fn new(token: String) -> Self { Self { token, clients: Mutex::new(HashMap::new()) } }
+    pub fn new(token: String) -> Self {
+        Self {
+            token,
+            clients: Mutex::new(HashMap::new()),
+            pending: Mutex::new(HashMap::new()),
+        }
+    }
+
+    pub fn command(&self, profile: &str, message: Value) -> bool {
+        self.clients.lock().expect("bridge client lock")
+            .get(profile)
+            .is_some_and(|sender| sender.send(message.to_string()).is_ok())
+    }
+
+    /// A browser profile searches its own windows. Correlated replies avoid cross-profile
+    /// responses, and the timeout also supports users who have not reloaded the extension.
+    pub async fn matching_tabs(&self, profile: &str, url: &str, mode: &str) -> Option<Vec<BrowserTab>> {
+        let (sender, receiver) = oneshot::channel();
+        let request_id = uuid::Uuid::new_v4().to_string();
+        self.pending.lock().ok()?.insert(request_id.clone(), PendingLookup {
+            profile: profile.to_owned(), sender,
+        });
+
+        let sent = self.command(profile, json!({
+            "type": "lookup-tabs", "requestId": request_id, "url": url, "match": mode
+        }));
+        if !sent {
+            self.pending.lock().ok()?.remove(&request_id);
+            return None;
+        }
+
+        let result = timeout(Duration::from_millis(1800), receiver).await;
+        self.pending.lock().ok()?.remove(&request_id);
+        match result {
+            Ok(Ok(tabs)) => Some(tabs),
+            _ => None,
+        }
+    }
+
+    fn handle_lookup_result(&self, profile: &str, value: &Value) {
+        let Some(id) = value.get("requestId").and_then(Value::as_str) else { return; };
+        let mut pending = self.pending.lock().expect("lookup lock");
+        if !pending.get(id).is_some_and(|request| request.profile == profile) { return; }
+        if let Some(request) = pending.remove(id) {
+            // Never trust browser metadata blindly, even over an authenticated local socket.
+            let choices = value.get("tabs")
+                .and_then(|tabs| serde_json::from_value::<Vec<BrowserTab>>(tabs.clone()).ok())
+                .unwrap_or_default();
+            let safe = choices.into_iter()
+                .filter(|tab| tab.id >= 0 && tab.window_id >= 0)
+                .take(300)
+                .map(|mut tab| {
+                    tab.title = tab.title.chars().take(160).collect();
+                    tab
+                })
+                .collect();
+            let _ = request.sender.send(safe);
+        }
+    }
+
 
     pub fn send(&self, profile: &str, url: &str, mode: &str) -> bool {
-        let message = json!({ "type": "activate", "url": url, "match": mode }).to_string();
-        let lock = self.clients.lock().expect("bridge client lock");
-        lock.get(profile).is_some_and(|client| client.send(message).is_ok())
+        self.command(profile, json!({ "type": "activate", "url": url, "match": mode }))
     }
 
     pub fn connected(&self) -> Vec<String> {
@@ -88,6 +160,10 @@ async fn serve_client(stream: tokio::net::TcpStream, bridge: Arc<Bridge>) -> Res
                             let _ = tx.send(json!({"type":"ready"}).to_string());
                         } else if value.get("type").and_then(Value::as_str) == Some("ping") {
                             let _ = tx.send(json!({"type":"pong"}).to_string());
+                        } else if value.get("type").and_then(Value::as_str) == Some("tabs-result") {
+                            if let Some(name) = profile.as_ref() {
+                                bridge.handle_lookup_result(name, &value);
+                            }
                         }
                     }
                     Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
