@@ -6,6 +6,8 @@ export type AppWindow = { id: string; title: string };
 /** Enumeration uses visible titled top-level windows only. */
 export const listAppWindows = (executable: string) =>
   invoke<AppWindow[]>('list_application_windows', { executable });
+export const openFolder = (path: string) =>
+  invoke<'existing-window' | 'new-tab' | 'new-window'>('open_folder', { path });
 export const focusAppWindow = (executable: string, windowId: string) =>
   invoke<void>('focus_application_window', { executable, windowId });
 
