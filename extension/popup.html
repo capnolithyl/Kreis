@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"/><title>Kreis browser bridge</title><style>
+body{font:13px 'Segoe UI',sans-serif;background:#141b2c;color:#f2f6ff;padding:16px;width:300px;margin:0}
+h1{font-size:23px;margin:0 0 2px}p{color:#adbad5;line-height:1.5}label{display:block;margin:14px 0 4px}input,select{width:100%;box-sizing:border-box;background:#202c45;border:1px solid #566481;border-radius:7px;color:#fff;padding:10px}button{background:#9aafff;border:0;border-radius:7px;padding:10px 18px;margin-top:16px;font-weight:700;cursor:pointer}#status{font-weight:650;color:#9aafff}small{color:#a6afbf}
+</style></head><body>
+<h1>Kreis <small>0.1.0</small></h1>
+<p>Pair this browser profile with the Kreis Windows app. Each Vivaldi profile needs its own extension installation.</p>
+<label for="profile">Profile</label><select id="profile"><option>Work</option><option>Personal</option></select>
+<label for="pairingToken">Pairing key from Kreis settings</label><input type="password" id="pairingToken" autocomplete="off" spellcheck="false" placeholder="Paste pairing key"/>
+<button id="save">Save & connect</button><p>Status: <span id="status">Checking...</span></p>
+<script src="popup.js"></script></body></html>
