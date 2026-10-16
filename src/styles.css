@@ -140,3 +140,15 @@ input::placeholder { color: #687692; }
 .setting-section .section-title { flex-wrap: wrap; }
 
 .dialog-error { margin: 14px 0 0; padding: 10px 12px; color: #ffe3ed; background: #5e3043; border-radius: 8px; font-size: 12px; }
+
+/* Each category is a dedicated page; only shortcuts/groups normally needs scrolling. */
+.settings-header-leading { display: flex; align-items: flex-start; gap: 18px; min-width: 0; }
+.settings-header-leading .icon-button { margin-top: 9px; flex: 0 0 35px; }
+.settings-header-leading > div { min-width: 0; }
+.settings-header-leading h1 { font-size: 28px; }
+.settings-body--hotkey .setting-section,
+.settings-body--typography .setting-section,
+.settings-body--connection .setting-section { max-width: 740px; }
+.settings-body .setting-section:only-child { border-bottom: 0; }
+.settings-body .bottom-actions { margin-top: 14px; border-top: 1px solid #30374a; gap: 12px; }
+.settings-body .bottom-actions > button:last-child { margin-left: auto; }
