@@ -652,7 +652,17 @@ export default function App() {
                   </label>
                   <label>Type
                     <select value={draft.type} disabled={Boolean(draft.id)}
-                      onChange={event => setDraft({...draft, type: event.target.value as Entry['type']})}>
+                      onChange={event => {
+                        const type = event.target.value as Entry['type'];
+                        setDraft({
+                          ...draft, type,
+                          target: type === 'folder' ? DEFAULT_FOLDER.target
+                            : type === 'app' ? 'Code.exe' : type === 'browser' ? 'https://' : '',
+                          icon: type === 'folder' ? DEFAULT_FOLDER.icon
+                            : type === 'group' ? 'folder' : draft.icon,
+                          windowTitle: undefined
+                        });
+                      }}>
                       <option value="browser">Browser tab</option>
                       <option value="app">Windows application</option>
                       <option value="folder">Windows folder</option>
