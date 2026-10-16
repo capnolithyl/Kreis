@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Kreis Tab Switcher",
+  "version": "0.1.0",
+  "description": "Connect a Vivaldi browser profile to the Kreis Windows radial launcher.",
+  "minimum_chrome_version": "116",
+  "permissions": ["tabs", "storage"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Kreis", "default_popup": "popup.html" }
+}
