@@ -138,3 +138,5 @@ input::placeholder { color: #687692; }
 .entry-row--group .entry-name strong { color: #f2f5ff; }
 .entry-row--child .entry-icon { width: 33px; height: 33px; }
 .setting-section .section-title { flex-wrap: wrap; }
+
+.dialog-error { margin: 14px 0 0; padding: 10px 12px; color: #ffe3ed; background: #5e3043; border-radius: 8px; font-size: 12px; }
