@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
+import { getCurrentWindow, LogicalSize, type PhysicalPosition } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { load, type Store } from '@tauri-apps/plugin-store';
@@ -9,13 +9,17 @@ import { icons } from './icons';
 import { DEFAULT_APPEARANCE, DEFAULT_SETTINGS, WHEEL_FONTS, normalizeAppearance, wheelFontStack, type Entry, type Settings, type WheelAppearance, type WheelFont, validateEntry } from './types';
 import RadialWheel, { type WheelOption } from './RadialWheel';
 import { filterByTitle } from './titleFilter.mjs';
+import { SETTINGS_CATEGORIES, settingsCategoryTitle, type SettingsCategory } from './settingsCategories';
 
 type WheelLevel =
+  | { kind: 'settings'; entry: Entry }
   | { kind: 'group'; entry: Entry }
   | { kind: 'tabs'; entry: Entry; tabs: BrowserTab[] }
   | { kind: 'apps'; entry: Entry; windows: AppWindow[] };
 
 const MAX_ITEMS_PER_WHEEL = 12;
+/** Synthetic entry to reuse Back and nested-wheel rendering without saving a settings shortcut. */
+const SETTINGS_ENTRY: Entry = { id: 'kreis-settings', title: 'Settings', type: 'group', target: '', profile: 'Work', match: 'prefix', icon: 'settings', color: '#617cae' };
 const DEFAULT_GROUP: Entry = { id: '', title: '', type: 'group', target: '', profile: 'Work', match: 'prefix', icon: 'folder', color: '#6a8ec2' };
 const DEFAULT_NEW: Entry = { id: '', title: '', type: 'browser', target: 'https://', profile: 'Work', match: 'prefix', icon: 'globe', color: '#6385d7' };
 const wheelSize = 600;
@@ -27,6 +31,8 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [appearanceDraft, setAppearanceDraft] = useState<WheelAppearance>(DEFAULT_APPEARANCE);
   const [screen, setScreen] = useState<'wheel' | 'settings'>('wheel');
+  const [settingsSection, setSettingsSection] = useState<SettingsCategory>('hotkey');
+  const previousWheelPosition = useRef<PhysicalPosition<number> | null>(null);
   const [isReady, setReady] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -105,7 +111,7 @@ export default function App() {
           setNotice('Ctrl + Space is unavailable. Using Ctrl + Alt + Space instead.');
         }
         setReady(true);
-        const unlistenSettings = await listen('show-settings', () => { void openSettings(); });
+        const unlistenSettings = await listen('show-settings', () => { openSettingsWheel(true); });
         const unlistenWheel = await listen('kreis-wheel-opened', () => {
           resetWheel();
           setScreen('wheel');
@@ -135,7 +141,7 @@ export default function App() {
       if (event.key === 'Escape') {
         event.preventDefault();
         if (draft) { setDraft(null); return; }
-        if (screen === 'settings') { void closeSettings(); return; }
+        if (screen === 'settings') { void backToSettingsWheel(); return; }
         void closeLauncher();
       } else if (event.key === 'Backspace' && screen === 'wheel' && levels.length > 0) {
         event.preventDefault();
@@ -146,16 +152,57 @@ export default function App() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [draft, screen, levels]);
 
-  async function openSettings() {
-    resetWheel();
+  /** The main wheel's center and the tray Settings item both open the category wheel. */
+  function openSettingsWheel(fromTray = false) {
+    setScreen('wheel');
+    setError('');
+    setNotice('');
+    setTabPage(0);
+    if (fromTray) {
+      resetWheel();
+      setLevels([{ kind: 'settings', entry: SETTINGS_ENTRY }]);
+    } else {
+      pushLevel({ kind: 'settings', entry: SETTINGS_ENTRY });
+    }
+  }
+
+  async function openSettings(section: SettingsCategory) {
+    setSettingsSection(section);
+    setDraft(null);
+    setError('');
+    setNotice('');
+    // Unsaved edits in one category never silently carry into a later visit.
     setAppearanceDraft(settings.appearance);
-    setScreen('settings');
-    await window.setSize(editSize);
-    await window.center();
-    await window.show();
-    await window.setFocus();
-    try { setPairingKey(await getPairingKey()); setProfiles(await getProfiles()); }
-    catch (cause) { setNotice(String(cause)); }
+    setShortcutDraft(settings.shortcut);
+    try {
+      previousWheelPosition.current = await window.outerPosition();
+      setScreen('settings');
+      await window.setSize(editSize);
+      await window.center();
+      await window.show();
+      await window.setFocus();
+      if (section === 'connection') {
+        const [key, connected] = await Promise.all([getPairingKey(), getProfiles()]);
+        setPairingKey(key);
+        setProfiles(connected);
+      }
+    } catch (cause) { setError(String(cause)); }
+  }
+
+  /** Return to the same nested settings wheel, at its original cursor location. */
+  async function backToSettingsWheel() {
+    setDraft(null);
+    setError('');
+    setNotice('');
+    setScreen('wheel');
+    try {
+      await window.setSize(new LogicalSize(wheelSize, wheelSize));
+      if (previousWheelPosition.current) {
+        await window.setPosition(previousWheelPosition.current);
+      }
+      await window.show();
+      await window.setFocus();
+    } catch (cause) { setError(String(cause)); }
   }
 
   async function closeSettings() {
