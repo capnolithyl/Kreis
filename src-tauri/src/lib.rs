@@ -153,7 +153,14 @@ pub fn run() {
                         if let Some(window) = app.get_webview_window("main") { let _ = show_near_cursor(&window); }
                     }
                     "settings" => {
-                        if let Some(window) = app.get_webview_window("main") { let _ = window.show(); let _ = app.emit("show-settings", ()); }
+                        if let Some(window) = app.get_webview_window("main") {
+                            // Tray Settings opens the same cursor-centered category wheel.
+                            // Restore the wheel size first in case a settings page was shown.
+                            let _ = window.set_size(tauri::LogicalSize::new(600.0, 600.0));
+                            if show_near_cursor(&window).is_ok() {
+                                let _ = app.emit("show-settings", ());
+                            }
+                        }
                     }
                     "quit" => app.exit(0),
                     _ => {}
