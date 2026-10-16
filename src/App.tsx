@@ -304,10 +304,11 @@ export default function App() {
             const y = wheelSize / 2 + Math.sin(angle) * radius;
             const Icon = item.isNew ? Plus : (icons[item.icon] || icons.rocket);
             return (
-              <button key={item.key} className="wheel-item" style={{ left: x, top: y, '--accent': item.color } as CSSProperties}
-                disabled={busy} onClick={item.onSelect} title={item.tooltip}>
+              <button key={item.key} className={submenu && !item.isNew ? 'wheel-item wheel-item--tab' : 'wheel-item'}
+                style={{ left: x, top: y, '--accent': item.color } as CSSProperties}
+                disabled={busy} onClick={item.onSelect} title={item.tooltip} aria-label={item.tooltip}>
                 <span className="wheel-icon"><Icon size={25}/></span>
-                <span className="wheel-label">{item.title}</span>
+                <span className={submenu && !item.isNew ? 'wheel-label wheel-tab-label' : 'wheel-label'}>{item.title}</span>
               </button>
             );
           })}
