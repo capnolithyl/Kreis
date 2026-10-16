@@ -24,7 +24,12 @@ const DEFAULT_GROUP: Entry = { id: '', title: '', type: 'group', target: '', pro
 const DEFAULT_NEW: Entry = { id: '', title: '', type: 'browser', target: 'https://', profile: 'Work', match: 'prefix', icon: 'globe', color: '#6385d7' };
 const wheelSize = 600;
 const tabsPerPage = 7; // Keep the eighth slot for an explicit New Tab action.
-const editSize = new LogicalSize(820, 680);
+const settingsSizes: Record<SettingsCategory, LogicalSize> = {
+  hotkey: new LogicalSize(740, 390),
+  typography: new LogicalSize(790, 485),
+  shortcuts: new LogicalSize(900, 710),
+  connection: new LogicalSize(770, 465)
+};
 const window = getCurrentWindow();
 
 export default function App() {
@@ -177,7 +182,7 @@ export default function App() {
     try {
       previousWheelPosition.current = await window.outerPosition();
       setScreen('settings');
-      await window.setSize(editSize);
+      await window.setSize(settingsSizes[section]);
       await window.center();
       await window.show();
       await window.setFocus();
