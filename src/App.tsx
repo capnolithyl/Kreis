@@ -4,11 +4,18 @@ import { listen } from '@tauri-apps/api/event';
 import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { load, type Store } from '@tauri-apps/plugin-store';
 import { ArrowLeft, Check, ChevronDown, CircleHelp, Copy, Minus, Plus, RotateCcw, Save, Settings2, Trash2, X } from 'lucide-react';
-import { focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, hideWheel, launch, openNewBrowserTab, toggleWheel, type BrowserTab } from './bridge';
+import { focusAppWindow, focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, hideWheel, launch, listAppWindows, openNewBrowserTab, toggleWheel, type AppWindow, type BrowserTab } from './bridge';
 import { icons } from './icons';
 import { DEFAULT_APPEARANCE, DEFAULT_SETTINGS, WHEEL_FONTS, normalizeAppearance, wheelFontStack, type Entry, type Settings, type WheelAppearance, type WheelFont, validateEntry } from './types';
 import RadialWheel, { type WheelOption } from './RadialWheel';
 
+type WheelLevel =
+  | { kind: 'group'; entry: Entry }
+  | { kind: 'tabs'; entry: Entry; tabs: BrowserTab[] }
+  | { kind: 'apps'; entry: Entry; windows: AppWindow[] };
+
+const MAX_ITEMS_PER_WHEEL = 12;
+const DEFAULT_GROUP: Entry = { id: '', title: '', type: 'group', target: '', profile: 'Work', match: 'prefix', icon: 'folder', color: '#6a8ec2' };
 const DEFAULT_NEW: Entry = { id: '', title: '', type: 'browser', target: 'https://', profile: 'Work', match: 'prefix', icon: 'globe', color: '#6385d7' };
 const wheelSize = 600;
 const tabsPerPage = 7; // Keep the eighth slot for an explicit New Tab action.
@@ -28,7 +35,7 @@ export default function App() {
   const [shortcutDraft, setShortcutDraft] = useState('Control+Space');
   const activeShortcut = useRef<string | null>(null);
   const store = useRef<Store | null>(null);
-  const [submenu, setSubmenu] = useState<{ entry: Entry; tabs: BrowserTab[] } | null>(null);
+  const [levels, setLevels] = useState<WheelLevel[]>([]);
   const [tabPage, setTabPage] = useState(0);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -40,7 +47,7 @@ export default function App() {
     setWheelEpoch(current => current + 1);
     busyRef.current = false;
     setBusy(false);
-    setSubmenu(null);
+    setLevels([]);
     setTabPage(0);
     setError('');
   }, []);
@@ -129,16 +136,14 @@ export default function App() {
         if (draft) { setDraft(null); return; }
         if (screen === 'settings') { void closeSettings(); return; }
         void closeLauncher();
-      } else if (event.key === 'Backspace' && screen === 'wheel' && submenu) {
+      } else if (event.key === 'Backspace' && screen === 'wheel' && levels.length > 0) {
         event.preventDefault();
-        setSubmenu(null);
-        setTabPage(0);
-        setError('');
+        backOneLevel();
       }
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [draft, screen, submenu]);
+  }, [draft, screen, levels]);
 
   async function openSettings() {
     resetWheel();
@@ -160,8 +165,24 @@ export default function App() {
     await hideWheel();
   }
 
+  function backOneLevel() {
+    setLevels(current => current.slice(0, -1));
+    setTabPage(0);
+    setError('');
+  }
+
+  function pushLevel(level: WheelLevel) {
+    setLevels(current => [...current, level]);
+    setTabPage(0);
+    setError('');
+  }
+
   async function selectEntry(entry: Entry) {
     if (busyRef.current) return;
+    if (entry.type === 'group') {
+      pushLevel({ kind: 'group', entry });
+      return;
+    }
     busyRef.current = true;
     setBusy(true);
     setError('');
@@ -171,19 +192,28 @@ export default function App() {
         const tabs = await getMatchingTabs(entry);
         if (generation !== selectionGeneration.current) return;
         if (tabs && tabs.length > 1) {
-          setSubmenu({ entry, tabs });
-          setTabPage(0);
+          pushLevel({ kind: 'tabs', entry, tabs });
           return;
         }
         if (tabs && tabs.length === 1) {
           await focusBrowserTab(entry.profile, tabs[0].id);
         } else {
-          // Zero matches or an older/disconnected extension retain the legacy behavior.
+          // An old/disconnected extension retains the previous URL fallback.
           const result = await launch(entry);
           if (result.details) setNotice(result.details);
         }
-      } else {
-        await launch(entry);
+      } else if (entry.type === 'app') {
+        const windows = await listAppWindows(entry.target);
+        if (generation !== selectionGeneration.current) return;
+        if (windows.length > 1) {
+          pushLevel({ kind: 'apps', entry, windows });
+          return;
+        }
+        if (windows.length === 1) {
+          await focusAppWindow(entry.target, windows[0].id);
+        } else {
+          await launch(entry);
+        }
       }
       if (generation === selectionGeneration.current) await closeLauncher();
     } catch (cause) {
@@ -196,14 +226,14 @@ export default function App() {
     }
   }
 
-  async function selectTab(tab: BrowserTab) {
-    if (!submenu || busyRef.current) return;
+  async function selectTab(tab: BrowserTab, entry: Entry) {
+    if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     setError('');
     const generation = selectionGeneration.current;
     try {
-      await focusBrowserTab(submenu.entry.profile, tab.id);
+      await focusBrowserTab(entry.profile, tab.id);
       if (generation === selectionGeneration.current) await closeLauncher();
     } catch (cause) {
       if (generation === selectionGeneration.current) setError(String(cause));
@@ -215,14 +245,14 @@ export default function App() {
     }
   }
 
-  async function openNewTab() {
-    if (!submenu || busyRef.current) return;
+  async function selectAppWindow(appWindow: AppWindow, entry: Entry) {
+    if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     setError('');
     const generation = selectionGeneration.current;
     try {
-      await openNewBrowserTab(submenu.entry);
+      await focusAppWindow(entry.target, appWindow.id);
       if (generation === selectionGeneration.current) await closeLauncher();
     } catch (cause) {
       if (generation === selectionGeneration.current) setError(String(cause));
@@ -234,6 +264,24 @@ export default function App() {
     }
   }
 
+  async function openNewTab(entry: Entry) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
+    const generation = selectionGeneration.current;
+    try {
+      await openNewBrowserTab(entry);
+      if (generation === selectionGeneration.current) await closeLauncher();
+    } catch (cause) {
+      if (generation === selectionGeneration.current) setError(String(cause));
+    } finally {
+      if (generation === selectionGeneration.current) {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    }
+  }
 
   async function saveAppearance() {
     setError('');
