@@ -1,5 +1,5 @@
 /* Kreis browser companion. Runs independently in each Vivaldi profile. */
-import { findMatchingTab, lookupDiagnostics } from './tab-finder.js';
+import { findMatchingTab, findMatchingTabs, lookupDiagnostics } from './tab-finder.js';
 
 const ENDPOINT = 'ws://127.0.0.1:43991';
 let socket = null;
@@ -69,6 +69,42 @@ async function activateTab(url, match) {
   }
 }
 
+async function lookupMatchingTabs(url, match) {
+  const tabs = await allBrowserTabs();
+  const diagnostics = lookupDiagnostics(tabs, url, match);
+  if (tabs.length && diagnostics.readableTabs === 0) {
+    throw new Error('Browser tabs have no readable URLs; check extension permissions.');
+  }
+  const matches = findMatchingTabs(tabs, url, match);
+  await recordLookup({ ...diagnostics, outcome: matches.length + ' matching tab(s)' });
+  // Metadata stays on the local paired connection; never send browser history or tab URLs.
+  return matches.slice(0, 300).map(tab => ({
+    id: tab.id,
+    windowId: tab.windowId,
+    title: (tab.title || 'Untitled tab').slice(0, 160)
+  }));
+}
+
+async function focusTabById(tabId) {
+  if (!Number.isInteger(tabId) || tabId < 0) throw new Error('Invalid tab ID.');
+  // Resolve its window at selection time because tabs can move while the wheel is open.
+  const tab = await chrome.tabs.get(tabId);
+  if (!Number.isInteger(tab.windowId)) throw new Error('Tab is no longer open.');
+  await chrome.tabs.update(tabId, { active: true });
+  const browserWindow = await chrome.windows.get(tab.windowId);
+  await chrome.windows.update(tab.windowId, browserWindow.state === 'minimized'
+    ? { state: 'normal', focused: true } : { focused: true });
+  await recordLookup({ outcome: 'Focused selected tab', totalTabs: 1,
+    readableTabs: 1, tabId, when: new Date().toISOString() });
+}
+
+async function openNewTab(url) {
+  const parsed = new URL(url);
+  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Only web URLs are supported.');
+  await chrome.tabs.create({ url, active: true });
+  await recordLookup({ outcome: 'Opened new tab by request', totalTabs: 0, readableTabs: 0 });
+}
+
 function clearConnection() {
   if (heartbeat) clearInterval(heartbeat);
   if (reconnectTimer) clearTimeout(reconnectTimer);
@@ -115,6 +151,28 @@ async function connect() {
         if (message.type === 'activate' && typeof message.url === 'string') {
           void activateTab(message.url, ['exact', 'site'].includes(message.match) ? message.match : 'prefix')
             .catch(error => setStatus('Activation failed: ' + String(error)));
+        }
+        if (message.type === 'lookup-tabs' && typeof message.url === 'string' &&
+            typeof message.requestId === 'string') {
+          void lookupMatchingTabs(message.url, message.match || 'prefix')
+            .then(tabs => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'tabs-result', requestId: message.requestId, tabs }));
+              }
+            })
+            .catch(error => {
+              setStatus('Tab lookup failed: ' + String(error));
+              // No result means the desktop will use its legacy fallback.
+              console.error('Kreis tab lookup failed', error);
+            });
+        }
+        if (message.type === 'focus-tab') {
+          void focusTabById(message.tabId)
+            .catch(error => setStatus('Activation failed: ' + String(error)));
+        }
+        if (message.type === 'open-new' && typeof message.url === 'string') {
+          void openNewTab(message.url)
+            .catch(error => setStatus('Open tab failed: ' + String(error)));
         }
       } catch (error) { console.error('Invalid Kreis bridge message', error); }
     };
