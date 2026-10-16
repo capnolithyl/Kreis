@@ -22,5 +22,7 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Check extension scripts
         run: npm run check:extension
+      - name: Test browser title filters
+        run: npm run check:title-filter
       - name: Validate full Windows installer build
         run: npm run tauri build
