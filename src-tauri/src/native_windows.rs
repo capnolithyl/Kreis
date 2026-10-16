@@ -1,13 +1,22 @@
-//! Windows-specific cursor lookup and application focusing.
+//! Windows-specific cursor lookup, native application window discovery, and focusing.
 use std::ffi::OsStr;
 use windows_sys::Win32::{
     Foundation::{CloseHandle, BOOL, HWND, LPARAM, POINT},
     System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION},
     UI::WindowsAndMessaging::{
-        EnumWindows, GetCursorPos, GetWindow, GetWindowThreadProcessId, IsIconic,
-        IsWindowVisible, SetForegroundWindow, ShowWindow, GW_OWNER, SW_RESTORE,
+        EnumWindows, GetCursorPos, GetWindow, GetWindowTextLengthW, GetWindowTextW,
+        GetWindowThreadProcessId, IsIconic, IsWindowVisible, SetForegroundWindow,
+        ShowWindow, GW_OWNER, SW_RESTORE,
     },
 };
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppWindow {
+    /// Hexadecimal HWND. Stored as a string to avoid JavaScript 64-bit integer precision loss.
+    pub id: String,
+    pub title: String,
+}
 
 pub fn cursor_position() -> Result<(i32, i32), String> {
     let mut pt = POINT { x: 0, y: 0 };
@@ -19,59 +28,100 @@ pub fn cursor_position() -> Result<(i32, i32), String> {
     }
 }
 
-struct Search<'a> {
-    requested: &'a str,
-    found: Option<HWND>,
+fn expected_name(executable: &str) -> Result<String, String> {
+    let requested = executable.trim();
+    if requested.is_empty() { return Err("Executable is empty".into()); }
+    let name = std::path::Path::new(requested)
+        .file_name().and_then(OsStr::to_str).unwrap_or(requested);
+    Ok(if name.to_ascii_lowercase().ends_with(".exe") {
+        name.to_owned()
+    } else {
+        format!("{name}.exe")
+    })
 }
 
-unsafe extern "system" fn find_window(hwnd: HWND, data: LPARAM) -> BOOL {
-    // SAFETY: EnumWindows passes the address of Search until enumeration ends.
-    let search = unsafe { &mut *(data as *mut Search<'_>) };
-    if unsafe { IsWindowVisible(hwnd) } == 0 || unsafe { GetWindow(hwnd, GW_OWNER) } != std::ptr::null_mut() {
+struct Search {
+    executable: String,
+    windows: Vec<AppWindow>,
+}
+
+unsafe extern "system" fn collect_windows(hwnd: HWND, data: LPARAM) -> BOOL {
+    // SAFETY: EnumWindows holds the pointer to Search until enumeration completes.
+    let search = unsafe { &mut *(data as *mut Search) };
+    if unsafe { IsWindowVisible(hwnd) } == 0
+        || unsafe { GetWindow(hwnd, GW_OWNER) } != std::ptr::null_mut() {
         return 1;
     }
+
+    // Ignore untitled helper windows. VS Code exposes one titled top-level HWND per workspace.
+    let title_len = unsafe { GetWindowTextLengthW(hwnd) };
+    if title_len <= 0 { return 1; }
+
     let mut pid: u32 = 0;
     unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
     if pid == 0 { return 1; }
     let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
     if handle.is_null() { return 1; }
-    let mut buffer = [0u16; 1024];
-    let mut size = buffer.len() as u32;
-    let ok = unsafe { QueryFullProcessImageNameW(handle, 0, buffer.as_mut_ptr(), &mut size) } != 0;
+    let mut path = [0u16; 2048];
+    let mut length = path.len() as u32;
+    let success = unsafe { QueryFullProcessImageNameW(handle, 0, path.as_mut_ptr(), &mut length) } != 0;
     unsafe { CloseHandle(handle) };
-    if !ok { return 1; }
-    let process = String::from_utf16_lossy(&buffer[..size as usize]);
-    let name = std::path::Path::new(&process)
+    if !success { return 1; }
+
+    let process_path = String::from_utf16_lossy(&path[..length as usize]);
+    let process_name = std::path::Path::new(&process_path)
         .file_name().and_then(OsStr::to_str).unwrap_or("");
-    if name.eq_ignore_ascii_case(search.requested) {
-        search.found = Some(hwnd);
-        return 0;
-    }
+    if !process_name.eq_ignore_ascii_case(&search.executable) { return 1; }
+
+    let mut title = vec![0u16; title_len as usize + 1];
+    let copied = unsafe { GetWindowTextW(hwnd, title.as_mut_ptr(), title.len() as i32) };
+    if copied <= 0 { return 1; }
+    let title = String::from_utf16_lossy(&title[..copied as usize]);
+    search.windows.push(AppWindow {
+        id: format!("{:X}", hwnd as usize),
+        title: title.chars().take(160).collect(),
+    });
     1
 }
 
-pub fn focus_or_launch(executable: &str) -> Result<(), String> {
-    let executable = executable.trim();
-    if executable.is_empty() { return Err("Executable is empty".into()); }
-    let process_name = std::path::Path::new(executable)
-        .file_name().and_then(OsStr::to_str).unwrap_or(executable);
-    let expected = if process_name.to_ascii_lowercase().ends_with(".exe") {
-        process_name.to_string()
-    } else { format!("{process_name}.exe") };
-    let mut search = Search { requested: &expected, found: None };
-    // SAFETY: the callback is synchronous and Search outlives enumeration.
-    unsafe { EnumWindows(Some(find_window), &mut search as *mut Search<'_> as isize) };
-    if let Some(hwnd) = search.found {
-        // SAFETY: the handle came from a live enumerated desktop window.
-        unsafe {
-            if IsIconic(hwnd) != 0 { ShowWindow(hwnd, SW_RESTORE); }
-            SetForegroundWindow(hwnd);
-        }
-        return Ok(());
+/// Only returns visible, unowned, titled windows belonging to the requested executable.
+pub fn list_application_windows(executable: &str) -> Result<Vec<AppWindow>, String> {
+    let mut search = Search { executable: expected_name(executable)?, windows: Vec::new() };
+    // SAFETY: EnumWindows invokes the callback synchronously; search remains alive throughout.
+    unsafe { EnumWindows(Some(collect_windows), &mut search as *mut Search as isize) };
+    Ok(search.windows)
+}
+
+fn focus_handle(id: &str) -> Result<(), String> {
+    let raw = usize::from_str_radix(id, 16).map_err(|_| "Invalid window identifier")?;
+    let hwnd = raw as HWND;
+    // SAFETY: the HWND is revalidated by fresh enumeration before calling this function.
+    unsafe {
+        if IsIconic(hwnd) != 0 { ShowWindow(hwnd, SW_RESTORE); }
+        SetForegroundWindow(hwnd);
     }
-    // A full path is more reliable when the executable is not on PATH.
-    std::process::Command::new(executable)
+    Ok(())
+}
+
+/// Re-enumeration checks the HWND *still* belongs to the expected executable.
+pub fn focus_application_window(executable: &str, id: &str) -> Result<(), String> {
+    let windows = list_application_windows(executable)?;
+    let found = windows.iter().find(|window| window.id.eq_ignore_ascii_case(id));
+    match found {
+        Some(window) => focus_handle(&window.id),
+        None => Err("That application window is no longer open. Reopen Kreis to refresh the list.".into()),
+    }
+}
+
+pub fn focus_or_launch(executable: &str) -> Result<(), String> {
+    if let Some(window) = list_application_windows(executable)?.first() {
+        return focus_handle(&window.id);
+    }
+    let name = expected_name(executable)?;
+    std::process::Command::new(executable.trim())
         .spawn()
         .map(|_| ())
-        .map_err(|e| format!("Could not find a running {expected} window or start {executable}: {e}. Set the full .exe path in Kreis settings."))
+        .map_err(|e| format!(
+            "Could not find a running {name} window or start {executable}: {e}. Set the full .exe path in Kreis settings."
+        ))
 }
