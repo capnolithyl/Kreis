@@ -28,6 +28,16 @@ Groups are currently **one level deep** (groups cannot contain other groups), an
 
 This release only updates the Windows app; **the existing Vivaldi extension does not need to be reinstalled or re-paired**.
 
+## Browser tab title filtering
+
+To group project-specific ChatGPT conversations, create or edit a **Browser tab** shortcut, set the URL to `https://chatgpt.com/`, choose the correct Vivaldi profile and use **URL path prefix** matching. In **Tab title contains (optional)**, enter `IHM`, then set **Placement → IHM**.
+
+When selecting **IHM → ChatGPT**, Kreis first finds tabs that match the URL in the selected browser profile, then keeps **only** those whose title includes `IHM`, ignoring case. With one match it focuses the tab directly; with multiple matches it shows a titled sub-Kreis. Without a title filter, nothing changes and all URL-matching tabs are offered.
+
+You can rename your ChatGPT conversations to include a project keyword, for example `IHM: Gutenberg blocks` or `IHM: Figma discussion`. The filter uses **the actual browser tab title** reported by Vivaldi, so check that the keyword appears in the tab title. If no matching tab is open, Kreis displays an explanation rather than opening an unrelated chat. If the extension is unavailable, it also reports that filtering cannot run safely.
+
+The filter is entirely inside the Windows app; **no Vivaldi extension update is needed**.
+
 ## Wheel appearance
 
 Open Kreis **Settings → Wheel typography** to customize the radial menu without affecting the saved shortcuts or Vivaldi pairing. Choose from installed Windows font families and adjust **Shortcut labels (10–18 px)** and **Center label (13–24 px)**. The live preview updates immediately; click **Apply typography** to save the choice. The same font and sizes are used for nested tab wheels. If a font isn't installed, Kreis falls back to Segoe UI.

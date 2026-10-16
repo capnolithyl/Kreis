@@ -8,6 +8,7 @@ import { focusAppWindow, focusBrowserTab, getMatchingTabs, getPairingKey, getPro
 import { icons } from './icons';
 import { DEFAULT_APPEARANCE, DEFAULT_SETTINGS, WHEEL_FONTS, normalizeAppearance, wheelFontStack, type Entry, type Settings, type WheelAppearance, type WheelFont, validateEntry } from './types';
 import RadialWheel, { type WheelOption } from './RadialWheel';
+import { filterByTitle } from './titleFilter.mjs';
 
 type WheelLevel =
   | { kind: 'group'; entry: Entry }
@@ -189,8 +190,18 @@ export default function App() {
     const generation = selectionGeneration.current;
     try {
       if (entry.type === 'browser') {
-        const tabs = await getMatchingTabs(entry);
+        const matchingUrlTabs = await getMatchingTabs(entry);
         if (generation !== selectionGeneration.current) return;
+        const titleContains = entry.windowTitle?.trim() || '';
+        // Never fall back to an unfiltered activation when the title filter
+        // requires the extension. That could switch to an unrelated chat.
+        if (titleContains && matchingUrlTabs === null) {
+          throw new Error(`The ${entry.profile} browser extension did not respond. Tab title filtering requires a connected Vivaldi profile.`);
+        }
+        const tabs = matchingUrlTabs ? filterByTitle(matchingUrlTabs, titleContains) : null;
+        if (titleContains && tabs?.length === 0) {
+          throw new Error(`No open ${entry.profile} tab matching ${entry.title} has "${titleContains}" in its title.`);
+        }
         if (tabs && tabs.length > 1) {
           pushLevel({ kind: 'tabs', entry, tabs });
           return;
@@ -198,7 +209,7 @@ export default function App() {
         if (tabs && tabs.length === 1) {
           await focusBrowserTab(entry.profile, tabs[0].id);
         } else {
-          // An old/disconnected extension retains the previous URL fallback.
+          // For unfiltered links, retain the existing new-tab/default-browser fallback.
           const result = await launch(entry);
           if (result.details) setNotice(result.details);
         }
@@ -329,7 +340,7 @@ export default function App() {
       title: draft.title.trim(),
       target: draft.type === 'group' ? '' : draft.target.trim(),
       groupId: draft.type === 'group' ? undefined : draft.groupId || undefined,
-      windowTitle: draft.type === 'app' ? draft.windowTitle?.trim() || undefined : undefined
+      windowTitle: draft.type !== 'group' ? draft.windowTitle?.trim() || undefined : undefined
     };
     const entries = draft.id
       ? settings.entries.map(current => current.id === draft.id ? entry : current)
@@ -450,7 +461,7 @@ export default function App() {
         />
       ) : (
         <div className="settings-shell">
-          <header className="settings-header"><div><div className="overline">YOUR SHORTCUT TO EVERYTHING</div><h1>Kreis <small>0.4.0</small></h1><p>Pick a direction. Get back to work.</p></div><button className="icon-button" onClick={() => void closeSettings()} title="Close settings"><X/></button></header>
+          <header className="settings-header"><div><div className="overline">YOUR SHORTCUT TO EVERYTHING</div><h1>Kreis <small>0.4.1</small></h1><p>Pick a direction. Get back to work.</p></div><button className="icon-button" onClick={() => void closeSettings()} title="Close settings"><X/></button></header>
           {error && <div className="alert error" role="alert">{error}</div>}
           {notice && <div className="alert" onClick={() => setNotice('')}>{notice} <X size={14}/></div>}
           <div className="settings-body">
@@ -571,14 +582,17 @@ export default function App() {
                           onChange={event => setDraft({...draft, target: event.target.value})}
                           placeholder={draft.type === 'browser' ? 'https://example.com/' : 'Code.exe'}/>
                       </label>
-                      {draft.type === 'app' && (
-                        <label className="wide">Window title contains (optional)
-                          <input value={draft.windowTitle || ''}
-                            onChange={event => setDraft({...draft, windowTitle: event.target.value})}
-                            placeholder="For example: immaculate-heart-of-mary"/>
-                          <small className="helper">Leave blank to select from all windows. Matching a title focuses only that workspace.</small>
-                        </label>
-                      )}
+                      <label className="wide">
+                        {draft.type === 'browser' ? 'Tab title contains (optional)' : 'Window title contains (optional)'}
+                        <input value={draft.windowTitle || ''}
+                          onChange={event => setDraft({...draft, windowTitle: event.target.value})}
+                          placeholder={draft.type === 'browser' ? 'For example: IHM' : 'For example: immaculate-heart-of-mary'}/>
+                        <small className="helper">
+                          {draft.type === 'browser'
+                            ? 'Matches both the URL and this text in the tab title (case-insensitive). Leave blank for all matching tabs.'
+                            : 'Leave blank to select from all windows. Matching a title focuses only that workspace.'}
+                        </small>
+                      </label>
                       <label>Placement
                         <select value={draft.groupId || ''}
                           onChange={event => setDraft({...draft, groupId: event.target.value || undefined})}>
