@@ -335,7 +335,7 @@ export default function App() {
         </div>
       ) : (
         <div className="settings-shell">
-          <header className="settings-header"><div><div className="overline">YOUR SHORTCUT TO EVERYTHING</div><h1>Kreis <small>0.1.0</small></h1><p>Pick a direction. Get back to work.</p></div><button className="icon-button" onClick={() => void closeSettings()} title="Close settings"><X/></button></header>
+          <header className="settings-header"><div><div className="overline">YOUR SHORTCUT TO EVERYTHING</div><h1>Kreis <small>0.2.0</small></h1><p>Pick a direction. Get back to work.</p></div><button className="icon-button" onClick={() => void closeSettings()} title="Close settings"><X/></button></header>
           {error && <div className="alert error" role="alert">{error}</div>}
           {notice && <div className="alert" onClick={() => setNotice('')}>{notice} <X size={14}/></div>}
           <div className="settings-body">
