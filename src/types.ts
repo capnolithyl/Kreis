@@ -1,4 +1,4 @@
-export type TargetType = 'browser' | 'app' | 'group';
+export type TargetType = 'browser' | 'app' | 'folder' | 'group';
 export type Profile = 'Work' | 'Personal';
 export type MatchMode = 'exact' | 'prefix' | 'site';
 export type Entry = {
@@ -72,7 +72,7 @@ export const DEFAULT_SETTINGS: Settings = {
 export function validateEntry(entry: Entry): string | null {
   if (!entry.title.trim()) return 'Please enter a label.';
   if (entry.type === 'group') return null;
-  if (!entry.target.trim()) return 'Please enter a URL or executable.';
+  if (!entry.target.trim()) return 'Please enter a URL, executable, or folder path.';
   if (entry.type === 'browser') {
     try {
       const parsed = new URL(entry.target);
