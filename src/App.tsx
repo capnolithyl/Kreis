@@ -203,8 +203,15 @@ export default function App() {
           if (result.details) setNotice(result.details);
         }
       } else if (entry.type === 'app') {
-        const windows = await listAppWindows(entry.target);
+        const availableWindows = await listAppWindows(entry.target);
         if (generation !== selectionGeneration.current) return;
+        const titleFilter = entry.windowTitle?.trim().toLocaleLowerCase() || '';
+        const windows = titleFilter
+          ? availableWindows.filter(appWindow => appWindow.title.toLocaleLowerCase().includes(titleFilter))
+          : availableWindows;
+        if (titleFilter && windows.length === 0) {
+          throw new Error(`No ${entry.title} window matching "${entry.windowTitle}" is open.`);
+        }
         if (windows.length > 1) {
           pushLevel({ kind: 'apps', entry, windows });
           return;
@@ -321,7 +328,8 @@ export default function App() {
       id: draft.id || crypto.randomUUID(),
       title: draft.title.trim(),
       target: draft.type === 'group' ? '' : draft.target.trim(),
-      groupId: draft.type === 'group' ? undefined : draft.groupId || undefined
+      groupId: draft.type === 'group' ? undefined : draft.groupId || undefined,
+      windowTitle: draft.type === 'app' ? draft.windowTitle?.trim() || undefined : undefined
     };
     const entries = draft.id
       ? settings.entries.map(current => current.id === draft.id ? entry : current)
@@ -563,6 +571,14 @@ export default function App() {
                           onChange={event => setDraft({...draft, target: event.target.value})}
                           placeholder={draft.type === 'browser' ? 'https://example.com/' : 'Code.exe'}/>
                       </label>
+                      {draft.type === 'app' && (
+                        <label className="wide">Window title contains (optional)
+                          <input value={draft.windowTitle || ''}
+                            onChange={event => setDraft({...draft, windowTitle: event.target.value})}
+                            placeholder="For example: immaculate-heart-of-mary"/>
+                          <small className="helper">Leave blank to select from all windows. Matching a title focuses only that workspace.</small>
+                        </label>
+                      )}
                       <label>Placement
                         <select value={draft.groupId || ''}
                           onChange={event => setDraft({...draft, groupId: event.target.value || undefined})}>
