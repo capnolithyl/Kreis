@@ -44,6 +44,12 @@ The default shortcut `Control+Space` is not globally reserved by Windows, but ot
 
 The provided IHM / Figma entries are **sample shortcuts**; edit or delete them to suit your own projects. Browser tab switching requires the extension. Windows executable launching needs an executable on PATH or a full `.exe` path.
 
+## Debugging a tab that opens twice
+
+After clicking an entry in Kreis, open the **Kreis extension popup** in that Vivaldi profile. The new **Tab matching diagnostics** section reports how many tabs the browser exposes, how many have readable URLs, and whether the shortcut matched its host or path. Clicking **Scan tabs now** refreshes the inventory. Only hostnames and paths appear in the report, not query strings or the pairing key.
+
+The companion extension uses ES-module service workers starting with v0.1.1. After updating a local checkout or extracted ZIP, visit `vivaldi://extensions` in **both** profiles and hit **Reload** on the Kreis extension. No reinstall of the Windows app is needed for extension-only changes.
+
 ## Current limitations
 
 - Windows only; the wheel supports up to 12 entries and no nested wheels yet.
