@@ -1,6 +1,7 @@
 import { ArrowLeft, Plus, Settings2, X } from 'lucide-react';
 import { icons } from './icons';
 import type { CSSProperties, KeyboardEvent } from 'react';
+import { type WheelAppearance, wheelFontStack } from './types';
 
 export type WheelOption = {
   key: string;
@@ -14,6 +15,7 @@ export type WheelOption = {
 
 type RadialWheelProps = {
   buttons: WheelOption[];
+  appearance: WheelAppearance;
   submenuTitle?: string;
   tabCount?: number;
   busy: boolean;
@@ -41,9 +43,28 @@ function point(radius: number, radians: number) {
 
 function wedgePath(midpoint: number, count: number): string {
   const half = Math.PI / count;
-  const gap = Math.min(0.018, half * 0.12);
-  const start = midpoint - half + gap;
-  const end = midpoint + half - gap;
+  if (count === 1) {
+    // Two semicircles form a complete ring without the invisible seam an SVG
+    // single-arc 360-degree path would create.
+    const a = midpoint - Math.PI / 2;
+    const b = a + Math.PI;
+    const outerStart = point(OUTER_RADIUS, a);
+    const outerMiddle = point(OUTER_RADIUS, b);
+    const innerStart = point(INNER_RADIUS, a);
+    const innerMiddle = point(INNER_RADIUS, b);
+    return [
+      `M ${outerStart.x} ${outerStart.y}`,
+      `A ${OUTER_RADIUS} ${OUTER_RADIUS} 0 0 1 ${outerMiddle.x} ${outerMiddle.y}`,
+      `A ${OUTER_RADIUS} ${OUTER_RADIUS} 0 0 1 ${outerStart.x} ${outerStart.y}`,
+      `L ${innerStart.x} ${innerStart.y}`,
+      `A ${INNER_RADIUS} ${INNER_RADIUS} 0 0 0 ${innerMiddle.x} ${innerMiddle.y}`,
+      `A ${INNER_RADIUS} ${INNER_RADIUS} 0 0 0 ${innerStart.x} ${innerStart.y}`,
+      'Z'
+    ].join(' ');
+  }
+  // No angular gap; adjacent wedges share an edge, creating a seamless ring.
+  const start = midpoint - half;
+  const end = midpoint + half;
   const outerStart = point(OUTER_RADIUS, start);
   const outerEnd = point(OUTER_RADIUS, end);
   const innerEnd = point(INNER_RADIUS, end);
@@ -62,8 +83,10 @@ function wedgePath(midpoint: number, count: number): string {
 }
 
 /** Preserve recognizable beginnings while fitting two concise lines in each wedge. */
-function labelLines(label: string, count: number): string[] {
-  const max = count >= 10 ? 10 : count >= 8 ? 13 : 17;
+function labelLines(label: string, count: number, fontSize: number): string[] {
+  const base = count >= 10 ? 10 : count >= 8 ? 13 : 17;
+  // Larger fonts need shorter lines to remain inside the wedge.
+  const max = Math.max(6, Math.floor(base * 12 / fontSize));
   const words = label.trim().split(/\s+/).filter(Boolean);
   if (!words.length) return ['Untitled'];
 
@@ -93,7 +116,7 @@ function labelLines(label: string, count: number): string[] {
 }
 
 export default function RadialWheel({
-  buttons, submenuTitle, tabCount, busy, error, page, pageCount,
+  buttons, appearance, submenuTitle, tabCount, busy, error, page, pageCount,
   onBack, onSettings, onClose, onPageChange
 }: RadialWheelProps) {
   const isSubmenu = Boolean(submenuTitle);
@@ -106,7 +129,12 @@ export default function RadialWheel({
   };
 
   return (
-    <div className="wheel" role="menu" aria-label={isSubmenu ? `${submenuTitle} tabs` : 'Kreis launcher'}>
+    <div className="wheel" role="menu" aria-label={isSubmenu ? `${submenuTitle} tabs` : 'Kreis launcher'}
+      style={{
+        fontFamily: wheelFontStack(appearance.fontFamily),
+        '--wheel-label-size': `${appearance.labelSize}px`,
+        '--wheel-center-size': `${appearance.centerSize}px`
+      } as CSSProperties}>
       <div className="wheel-enter">
         <svg className="wheel-svg" viewBox="0 0 600 600" width="600" height="600" aria-label="Radial shortcuts">
           <defs>
@@ -125,7 +153,7 @@ export default function RadialWheel({
             const midpoint = -Math.PI / 2 + index * TWO_PI / buttons.length;
             const labelPoint = point(LABEL_RADIUS, midpoint);
             const Icon = button.isNew ? Plus : (icons[button.icon] || icons.rocket);
-            const label = labelLines(button.title, buttons.length);
+            const label = labelLines(button.title, buttons.length, appearance.labelSize);
             return (
               <g
                 key={button.key}
@@ -158,7 +186,7 @@ export default function RadialWheel({
                     textAnchor="middle"
                   >
                     {label.map((line, lineIndex) => (
-                      <tspan key={lineIndex} x={labelPoint.x} dy={lineIndex === 0 ? 0 : 15}>
+                      <tspan key={lineIndex} x={labelPoint.x} dy={lineIndex === 0 ? 0 : Math.round(appearance.labelSize * 1.25)}>
                         {line}
                       </tspan>
                     ))}
