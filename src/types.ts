@@ -12,6 +12,8 @@ export type Entry = {
   color: string;
   /** A top-level group ID; absent means show this entry on the main wheel. */
   groupId?: string;
+  /** Optional case-insensitive substring for a specific app window/workspace. */
+  windowTitle?: string;
 };
 
 /** Preset fonts use locally installed Windows fonts; no downloads or network required. */
