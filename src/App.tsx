@@ -4,7 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { load, type Store } from '@tauri-apps/plugin-store';
 import { ArrowLeft, Check, ChevronDown, CircleHelp, Copy, Minus, Plus, RotateCcw, Save, Settings2, Trash2, X } from 'lucide-react';
-import { focusAppWindow, focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, hideWheel, launch, listAppWindows, openNewBrowserTab, toggleWheel, type AppWindow, type BrowserTab } from './bridge';
+import { focusAppWindow, focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, hideWheel, launch, listAppWindows, openFolder, openNewBrowserTab, toggleWheel, type AppWindow, type BrowserTab } from './bridge';
 import { icons } from './icons';
 import { DEFAULT_APPEARANCE, DEFAULT_SETTINGS, WHEEL_FONTS, normalizeAppearance, wheelFontStack, type Entry, type Settings, type WheelAppearance, type WheelFont, validateEntry } from './types';
 import RadialWheel, { type WheelOption } from './RadialWheel';
@@ -20,6 +20,7 @@ type WheelLevel =
 const MAX_ITEMS_PER_WHEEL = 12;
 /** Synthetic entry to reuse Back and nested-wheel rendering without saving a settings shortcut. */
 const SETTINGS_ENTRY: Entry = { id: 'kreis-settings', title: 'Settings', type: 'group', target: '', profile: 'Work', match: 'prefix', icon: 'settings', color: '#617cae' };
+const DEFAULT_FOLDER: Entry = { id: '', title: '', type: 'folder', target: '%USERPROFILE%\\Downloads', profile: 'Work', match: 'prefix', icon: 'folder', color: '#c1a062' };
 const DEFAULT_GROUP: Entry = { id: '', title: '', type: 'group', target: '', profile: 'Work', match: 'prefix', icon: 'folder', color: '#6a8ec2' };
 const DEFAULT_NEW: Entry = { id: '', title: '', type: 'browser', target: 'https://', profile: 'Work', match: 'prefix', icon: 'globe', color: '#6385d7' };
 const wheelSize = 600;
@@ -265,6 +266,10 @@ export default function App() {
           const result = await launch(entry);
           if (result.details) setNotice(result.details);
         }
+      } else if (entry.type === 'folder') {
+        await openFolder(entry.target);
+        // The native command hides Kreis before sending Explorer keyboard
+        // shortcuts; keeping this branch separate avoids browser fallback.
       } else if (entry.type === 'app') {
         const availableWindows = await listAppWindows(entry.target);
         if (generation !== selectionGeneration.current) return;
@@ -392,7 +397,7 @@ export default function App() {
       title: draft.title.trim(),
       target: draft.type === 'group' ? '' : draft.target.trim(),
       groupId: draft.type === 'group' ? undefined : draft.groupId || undefined,
-      windowTitle: draft.type !== 'group' ? draft.windowTitle?.trim() || undefined : undefined
+      windowTitle: draft.type === 'app' || draft.type === 'browser' ? draft.windowTitle?.trim() || undefined : undefined
     };
     const entries = draft.id
       ? settings.entries.map(current => current.id === draft.id ? entry : current)
@@ -490,7 +495,7 @@ export default function App() {
         : currentOptions.map(entry => ({
             key: entry.id, title: entry.title, color: entry.color, icon: entry.icon,
             tooltip: entry.type === 'group' ? `Open ${entry.title} group`
-              : `${entry.title} (${entry.type === 'browser' ? entry.profile : 'Windows'})`,
+              : `${entry.title} (${entry.type === 'browser' ? entry.profile : entry.type === 'folder' ? 'File Explorer' : 'Windows'})`,
             onSelect: () => void selectEntry(entry)
           }));
 
@@ -607,7 +612,7 @@ export default function App() {
                       <div className="entry-name">
                         <strong>{entry.title}</strong>
                         <small>{isGroup ? `Group · ${childrenFor(entry.id).length} shortcuts`
-                          : entry.type === 'app' ? 'Windows app' : `Vivaldi · ${entry.profile}`}</small>
+                          : entry.type === 'app' ? 'Windows app' : entry.type === 'folder' ? 'File Explorer folder' : `Vivaldi · ${entry.profile}`}</small>
                       </div>
                       <span className="entry-target" title={entry.target}>
                         {isGroup ? 'Nested Kreis' : entry.target}
@@ -650,17 +655,18 @@ export default function App() {
                       onChange={event => setDraft({...draft, type: event.target.value as Entry['type']})}>
                       <option value="browser">Browser tab</option>
                       <option value="app">Windows application</option>
+                      <option value="folder">Windows folder</option>
                       <option value="group">Group</option>
                     </select>
                   </label>
                   {draft.type !== 'group' && (
                     <>
-                      <label className="wide">{draft.type === 'browser' ? 'Website URL' : 'Executable name or full .exe path'}
+                      <label className="wide">{draft.type === 'browser' ? 'Website URL' : draft.type === 'folder' ? 'Folder path' : 'Executable name or full .exe path'}
                         <input value={draft.target}
                           onChange={event => setDraft({...draft, target: event.target.value})}
-                          placeholder={draft.type === 'browser' ? 'https://example.com/' : 'Code.exe'}/>
+                          placeholder={draft.type === 'browser' ? 'https://example.com/' : draft.type === 'folder' ? '%USERPROFILE%\\Downloads' : 'Code.exe'}/>
                       </label>
-                      <label className="wide">
+                      {draft.type !== 'folder' && <label className="wide">
                         {draft.type === 'browser' ? 'Tab title contains (optional)' : 'Window title contains (optional)'}
                         <input value={draft.windowTitle || ''}
                           onChange={event => setDraft({...draft, windowTitle: event.target.value})}
@@ -670,7 +676,10 @@ export default function App() {
                             ? 'Matches both the URL and this text in the tab title (case-insensitive). Leave blank for all matching tabs.'
                             : 'Leave blank to select from all windows. Matching a title focuses only that workspace.'}
                         </small>
-                      </label>
+                      </label>}
+                      {draft.type === 'folder' && (
+                        <p className="helper wide">Kreis focuses an already-open Downloads/other folder when possible, otherwise adds a tab to an existing File Explorer window on Windows 11. If no Explorer window exists, it opens a new one. Supports %USERPROFILE%, %OneDrive%, and ~ paths.</p>
+                      )}
                       <label>Placement
                         <select value={draft.groupId || ''}
                           onChange={event => setDraft({...draft, groupId: event.target.value || undefined})}>
