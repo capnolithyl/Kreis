@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getCurrentWindow, LogicalSize, type PhysicalPosition } from '@tauri-apps/api/window';
+import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { load, type Store } from '@tauri-apps/plugin-store';
@@ -32,7 +32,7 @@ export default function App() {
   const [appearanceDraft, setAppearanceDraft] = useState<WheelAppearance>(DEFAULT_APPEARANCE);
   const [screen, setScreen] = useState<'wheel' | 'settings'>('wheel');
   const [settingsSection, setSettingsSection] = useState<SettingsCategory>('hotkey');
-  const previousWheelPosition = useRef<PhysicalPosition<number> | null>(null);
+  const previousWheelPosition = useRef<Awaited<ReturnType<typeof window.outerPosition>> | null>(null);
   const [isReady, setReady] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -449,7 +449,16 @@ export default function App() {
     : activeLevel?.kind === 'apps'
       ? Math.ceil(activeLevel.windows.length / 8) : 1;
   const wheelButtons: WheelOption[] =
-    activeLevel?.kind === 'tabs'
+    activeLevel?.kind === 'settings'
+      ? SETTINGS_CATEGORIES.map(category => ({
+          key: category.key,
+          title: category.title,
+          icon: category.icon,
+          color: category.color,
+          tooltip: category.description,
+          onSelect: () => void openSettings(category.key)
+        }))
+    : activeLevel?.kind === 'tabs'
       ? [
           ...activeLevel.tabs.slice(tabPage * tabsPerPage, (tabPage + 1) * tabsPerPage)
             .map(tab => ({
@@ -480,11 +489,13 @@ export default function App() {
             onSelect: () => void selectEntry(entry)
           }));
 
-  const levelCount = activeLevel?.kind === 'group'
+  const levelCount = activeLevel?.kind === 'settings' ? SETTINGS_CATEGORIES.length
+    : activeLevel?.kind === 'group'
     ? currentOptions.length
     : activeLevel?.kind === 'tabs' ? activeLevel.tabs.length
       : activeLevel?.kind === 'apps' ? activeLevel.windows.length : 0;
-  const levelCountLabel = activeLevel?.kind === 'group' ? 'shortcuts'
+  const levelCountLabel = activeLevel?.kind === 'settings' ? 'categories'
+    : activeLevel?.kind === 'group' ? 'shortcuts'
     : activeLevel?.kind === 'apps' ? 'windows' : 'tabs';
 
   return (
@@ -501,20 +512,32 @@ export default function App() {
           error={error}
           page={tabPage}
           pageCount={pageCount}
-          onSettings={() => void openSettings()}
+          onSettings={() => openSettingsWheel()}
           onBack={backOneLevel}
           onClose={() => void closeLauncher()}
           onPageChange={setTabPage}
         />
       ) : (
         <div className="settings-shell">
-          <header className="settings-header"><div><div className="overline">YOUR SHORTCUT TO EVERYTHING</div><h1>Kreis <small>0.4.1</small></h1><p>Pick a direction. Get back to work.</p></div><button className="icon-button" onClick={() => void closeSettings()} title="Close settings"><X/></button></header>
+          <header className="settings-header">
+            <div className="settings-header-leading">
+              <button className="icon-button" onClick={() => void backToSettingsWheel()}
+                aria-label="Back to Settings wheel" title="Back to Settings wheel"><ArrowLeft size={20}/></button>
+              <div>
+                <div className="overline">KREIS SETTINGS</div>
+                <h1>{settingsCategoryTitle(settingsSection)} <small>0.5.0</small></h1>
+                <p>{SETTINGS_CATEGORIES.find(category => category.key === settingsSection)?.description}</p>
+              </div>
+            </div>
+            <button className="icon-button" onClick={() => void closeSettings()}
+              aria-label="Close Kreis settings" title="Close Kreis"><X/></button>
+          </header>
           {error && <div className="alert error" role="alert">{error}</div>}
           {notice && <div className="alert" onClick={() => setNotice('')}>{notice} <X size={14}/></div>}
           <div className="settings-body">
-            <section className="setting-section"><div className="section-title"><h2>Global shortcut</h2><span>Anywhere in Windows</span></div><div className="shortcut-row"><input aria-label="Global shortcut" value={shortcutDraft} onChange={event => setShortcutDraft(event.target.value)} placeholder="Control+Space"/><button className="primary" onClick={() => void saveShortcut()}><Save size={16}/> Apply</button></div><p className="helper">Examples: Control+Space, Control+Alt+K, Alt+Shift+Space. If a shortcut is already claimed, Kreis reports an error and preserves the previous binding.</p></section>
+            {settingsSection === 'hotkey' && <section className="setting-section"><div className="section-title"><h2>Global shortcut</h2><span>Anywhere in Windows</span></div><div className="shortcut-row"><input aria-label="Global shortcut" value={shortcutDraft} onChange={event => setShortcutDraft(event.target.value)} placeholder="Control+Space"/><button className="primary" onClick={() => void saveShortcut()}><Save size={16}/> Apply</button></div><p className="helper">Examples: Control+Space, Control+Alt+K, Alt+Shift+Space. If a shortcut is already claimed, Kreis reports an error and preserves the previous binding.</p></section>}
             
-            <section className="setting-section">
+            {settingsSection === 'typography' && <section className="setting-section">
               <div className="section-title"><h2>Wheel typography</h2><span>Main wheel and tab sub-wheels</span></div>
               <div className="appearance-controls">
                 <label>
@@ -546,8 +569,8 @@ export default function App() {
                 <button className="secondary" onClick={() => setAppearanceDraft(DEFAULT_APPEARANCE)}>Reset preview</button>
                 <button className="primary" onClick={() => void saveAppearance()}><Save size={16}/> Apply typography</button>
               </div>
-            </section>
-            <section className="setting-section">
+            </section>}
+            {settingsSection === 'shortcuts' && <section className="setting-section">
               <div className="section-title">
                 <h2>Shortcuts and groups <span className="count">{rootEntries.length}/12 main · {settings.entries.length} total</span></h2>
                 <div className="section-buttons">
@@ -597,9 +620,12 @@ export default function App() {
                   );
                 })}
               </div>
-            </section>
-            <section className="setting-section"><div className="section-title"><h2>Browser connection</h2><button className="secondary" onClick={() => void getProfiles().then(setProfiles)}>Refresh</button></div><div className="profiles"><div>Work <strong className={profiles.includes('Work') ? 'online' : 'offline'}>{profiles.includes('Work') ? 'Connected' : 'Not connected'}</strong></div><div>Personal <strong className={profiles.includes('Personal') ? 'online' : 'offline'}>{profiles.includes('Personal') ? 'Connected' : 'Not connected'}</strong></div></div><label className="helper" htmlFor="pairing-key">Pairing key (paste into each Vivaldi profile's Kreis extension)</label><div className="shortcut-row"><input id="pairing-key" readOnly type="password" value={pairingKey}/><button className="secondary" onClick={() => void navigator.clipboard.writeText(pairingKey)}><Copy size={15}/> Copy</button></div><p className="helper">The extension switches to existing tabs, including tabs in different Vivaldi windows. When disconnected, Kreis opens the URL with your default browser instead.</p></section>
-            <div className="bottom-actions"><button className="secondary" onClick={() => void persist({...settings, entries: DEFAULT_SETTINGS.entries})}><RotateCcw size={15}/> Restore sample entries</button><button className="primary" onClick={() => void closeSettings()}><Check size={16}/> Done</button></div>
+            </section>}
+            {settingsSection === 'connection' && <section className="setting-section"><div className="section-title"><h2>Browser connection</h2><button className="secondary" onClick={() => void getProfiles().then(setProfiles)}>Refresh</button></div><div className="profiles"><div>Work <strong className={profiles.includes('Work') ? 'online' : 'offline'}>{profiles.includes('Work') ? 'Connected' : 'Not connected'}</strong></div><div>Personal <strong className={profiles.includes('Personal') ? 'online' : 'offline'}>{profiles.includes('Personal') ? 'Connected' : 'Not connected'}</strong></div></div><label className="helper" htmlFor="pairing-key">Pairing key (paste into each Vivaldi profile's Kreis extension)</label><div className="shortcut-row"><input id="pairing-key" readOnly type="password" value={pairingKey}/><button className="secondary" onClick={() => void navigator.clipboard.writeText(pairingKey)}><Copy size={15}/> Copy</button></div><p className="helper">The extension switches to existing tabs, including tabs in different Vivaldi windows. When disconnected, Kreis opens the URL with your default browser instead.</p></section>}
+            <div className="bottom-actions">
+              {settingsSection === 'shortcuts' && <button className="secondary" onClick={() => void persist({...settings, entries: DEFAULT_SETTINGS.entries})}><RotateCcw size={15}/> Restore sample entries</button>}
+              <button className="primary" onClick={() => void backToSettingsWheel()}><ArrowLeft size={16}/> Back to settings</button>
+            </div>
           </div>
           {draft && (
             <div className="dialog-backdrop">
