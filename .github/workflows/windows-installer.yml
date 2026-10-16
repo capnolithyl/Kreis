@@ -19,6 +19,10 @@ jobs:
           workspaces: src-tauri -> target
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Check extension scripts
+        run: npm run check:extension
+      - name: Test browser title filters
+        run: npm run check:title-filter
       - name: Build NSIS installer
         run: npm run tauri build
       - name: Download installer from this run
