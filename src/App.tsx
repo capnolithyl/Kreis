@@ -481,13 +481,135 @@ export default function App() {
                 <button className="primary" onClick={() => void saveAppearance()}><Save size={16}/> Apply typography</button>
               </div>
             </section>
-            <section className="setting-section"><div className="section-title"><h2>Wheel entries <span className="count">{settings.entries.length}/12</span></h2><button className="secondary" disabled={settings.entries.length >= 12} onClick={() => {setDraft({...DEFAULT_NEW}); setError('');}}><Plus size={16}/> Add entry</button></div>
-            <div className="entry-list">{settings.entries.map((entry, index) => { const Icon = icons[entry.icon] || icons.rocket; return (<div className="entry-row" key={entry.id}><div className="entry-icon" style={{background: entry.color}}><Icon size={20}/></div><div className="entry-name"><strong>{entry.title}</strong><small>{entry.type === 'app' ? 'Windows app' : `Vivaldi · ${entry.profile}`}</small></div><span className="entry-target" title={entry.target}>{entry.target}</span><div className="entry-actions"><button className="tiny" aria-label={`Move ${entry.title} up`} disabled={index === 0} onClick={() => void moveEntry(index, -1)}>↑</button><button className="tiny" aria-label={`Move ${entry.title} down`} disabled={index === settings.entries.length - 1} onClick={() => void moveEntry(index, 1)}>↓</button><button className="tiny" onClick={() => {setDraft({...entry});setError('');}}>Edit</button><button className="tiny danger" aria-label={`Delete ${entry.title}`} onClick={() => void deleteEntry(entry.id)}><Trash2 size={15}/></button></div></div>);})}</div>
+            <section className="setting-section">
+              <div className="section-title">
+                <h2>Shortcuts and groups <span className="count">{rootEntries.length}/12 main · {settings.entries.length} total</span></h2>
+                <div className="section-buttons">
+                  <button className="secondary" disabled={rootEntries.length >= MAX_ITEMS_PER_WHEEL}
+                    onClick={() => { setDraft({ ...DEFAULT_GROUP }); setError(''); }}>
+                    <Plus size={16}/> Add group
+                  </button>
+                  <button className="secondary"
+                    disabled={rootEntries.length >= MAX_ITEMS_PER_WHEEL && groupIds.size === 0}
+                    onClick={() => {
+                      setDraft({ ...DEFAULT_NEW, groupId: rootEntries.length >= MAX_ITEMS_PER_WHEEL
+                        ? settings.entries.find(entry => entry.type === 'group')?.id : undefined });
+                      setError('');
+                    }}>
+                    <Plus size={16}/> Add shortcut
+                  </button>
+                </div>
+              </div>
+              <p className="helper">Create a group, then edit a shortcut and set its placement to that group. Groups keep the main wheel tidy; browser and desktop-app shortcuts still open their own matching tab/window wheels.</p>
+              <div className="entry-list">
+                {arrangedEntries.map(entry => {
+                  const Icon = icons[entry.icon] || icons.rocket;
+                  const siblings = settings.entries.filter(item => (item.groupId || '') === (entry.groupId || ''));
+                  const siblingIndex = siblings.findIndex(item => item.id === entry.id);
+                  const isGroup = entry.type === 'group';
+                  return (
+                    <div className={`entry-row${isGroup ? ' entry-row--group' : ''}${entry.groupId ? ' entry-row--child' : ''}`} key={entry.id}>
+                      <div className="entry-icon" style={{background: entry.color}}><Icon size={20}/></div>
+                      <div className="entry-name">
+                        <strong>{entry.title}</strong>
+                        <small>{isGroup ? `Group · ${childrenFor(entry.id).length} shortcuts`
+                          : entry.type === 'app' ? 'Windows app' : `Vivaldi · ${entry.profile}`}</small>
+                      </div>
+                      <span className="entry-target" title={entry.target}>
+                        {isGroup ? 'Nested Kreis' : entry.target}
+                      </span>
+                      <div className="entry-actions">
+                        <button className="tiny" aria-label={`Move ${entry.title} up`} disabled={siblingIndex <= 0}
+                          onClick={() => void moveEntry(entry.id, -1)}>↑</button>
+                        <button className="tiny" aria-label={`Move ${entry.title} down`} disabled={siblingIndex >= siblings.length - 1}
+                          onClick={() => void moveEntry(entry.id, 1)}>↓</button>
+                        <button className="tiny" onClick={() => { setDraft({...entry}); setError(''); }}>Edit</button>
+                        <button className="tiny danger" aria-label={`Delete ${entry.title}`}
+                          onClick={() => void deleteEntry(entry.id)}><Trash2 size={15}/></button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </section>
             <section className="setting-section"><div className="section-title"><h2>Browser connection</h2><button className="secondary" onClick={() => void getProfiles().then(setProfiles)}>Refresh</button></div><div className="profiles"><div>Work <strong className={profiles.includes('Work') ? 'online' : 'offline'}>{profiles.includes('Work') ? 'Connected' : 'Not connected'}</strong></div><div>Personal <strong className={profiles.includes('Personal') ? 'online' : 'offline'}>{profiles.includes('Personal') ? 'Connected' : 'Not connected'}</strong></div></div><label className="helper" htmlFor="pairing-key">Pairing key (paste into each Vivaldi profile's Kreis extension)</label><div className="shortcut-row"><input id="pairing-key" readOnly type="password" value={pairingKey}/><button className="secondary" onClick={() => void navigator.clipboard.writeText(pairingKey)}><Copy size={15}/> Copy</button></div><p className="helper">The extension switches to existing tabs, including tabs in different Vivaldi windows. When disconnected, Kreis opens the URL with your default browser instead.</p></section>
             <div className="bottom-actions"><button className="secondary" onClick={() => void persist({...settings, entries: DEFAULT_SETTINGS.entries})}><RotateCcw size={15}/> Restore sample entries</button><button className="primary" onClick={() => void closeSettings()}><Check size={16}/> Done</button></div>
           </div>
-          {draft && <div className="dialog-backdrop"><div className="edit-dialog" role="dialog" aria-modal="true" aria-label="Edit wheel entry"><div className="dialog-heading"><h2>{draft.id ? 'Edit entry' : 'Add entry'}</h2><button className="icon-button" onClick={() => setDraft(null)}><X/></button></div><div className="form-grid"><label>Label<input value={draft.title} maxLength={30} onChange={event => setDraft({...draft, title: event.target.value})} placeholder="My favorite tab" /></label><label>Type<select value={draft.type} onChange={event => setDraft({...draft,type: event.target.value as Entry['type']})}><option value="browser">Browser tab</option><option value="app">Windows application</option></select></label><label className="wide">{draft.type === 'browser' ? 'Website URL' : 'Executable name or full .exe path'}<input value={draft.target} onChange={event => setDraft({...draft,target: event.target.value})} placeholder={draft.type === 'browser' ? 'https://example.com/' : 'Code.exe'} /></label>{draft.type === 'browser' && <><label>Vivaldi profile<select value={draft.profile} onChange={event => setDraft({...draft,profile: event.target.value as Entry['profile']})}><option>Work</option><option>Personal</option></select></label><label>Tab matching<select value={draft.match} onChange={event => setDraft({...draft,match: event.target.value as Entry['match']})}><option value="prefix">URL path prefix (subpages too)</option><option value="exact">Exact URL (ignores hash)</option><option value="site">Website excluding /wp-admin/</option></select></label></>}<label>Icon<select value={draft.icon} onChange={event => setDraft({...draft,icon:event.target.value})}>{Object.keys(icons).map(name => <option key={name} value={name}>{name}</option>)}</select></label><label>Color<input className="color-input" type="color" value={draft.color} onChange={event => setDraft({...draft,color:event.target.value})}/></label></div><div className="dialog-actions"><button className="secondary" onClick={() => setDraft(null)}>Cancel</button><button className="primary" onClick={() => void saveEntry()}><Check size={16}/> Save entry</button></div></div></div>}
+          {draft && (
+            <div className="dialog-backdrop">
+              <div className="edit-dialog" role="dialog" aria-modal="true" aria-label="Edit wheel entry">
+                <div className="dialog-heading">
+                  <h2>{draft.id ? 'Edit entry' : draft.type === 'group' ? 'Add group' : 'Add shortcut'}</h2>
+                  <button className="icon-button" onClick={() => setDraft(null)}><X/></button>
+                </div>
+                <div className="form-grid">
+                  <label>Label
+                    <input value={draft.title} maxLength={30}
+                      onChange={event => setDraft({...draft, title: event.target.value})}
+                      placeholder={draft.type === 'group' ? 'IHM' : 'My favorite tab'}/>
+                  </label>
+                  <label>Type
+                    <select value={draft.type} disabled={Boolean(draft.id)}
+                      onChange={event => setDraft({...draft, type: event.target.value as Entry['type']})}>
+                      <option value="browser">Browser tab</option>
+                      <option value="app">Windows application</option>
+                      <option value="group">Group</option>
+                    </select>
+                  </label>
+                  {draft.type !== 'group' && (
+                    <>
+                      <label className="wide">{draft.type === 'browser' ? 'Website URL' : 'Executable name or full .exe path'}
+                        <input value={draft.target}
+                          onChange={event => setDraft({...draft, target: event.target.value})}
+                          placeholder={draft.type === 'browser' ? 'https://example.com/' : 'Code.exe'}/>
+                      </label>
+                      <label>Placement
+                        <select value={draft.groupId || ''}
+                          onChange={event => setDraft({...draft, groupId: event.target.value || undefined})}>
+                          <option value="">Main Kreis</option>
+                          {settings.entries.filter(entry => entry.type === 'group').map(group => (
+                            <option key={group.id} value={group.id}>{group.title}</option>
+                          ))}
+                        </select>
+                      </label>
+                      {draft.type === 'browser' && (
+                        <>
+                          <label>Vivaldi profile
+                            <select value={draft.profile}
+                              onChange={event => setDraft({...draft, profile: event.target.value as Entry['profile']})}>
+                              <option>Work</option><option>Personal</option>
+                            </select>
+                          </label>
+                          <label>Tab matching
+                            <select value={draft.match}
+                              onChange={event => setDraft({...draft, match: event.target.value as Entry['match']})}>
+                              <option value="prefix">URL path prefix (subpages too)</option>
+                              <option value="exact">Exact URL (ignores hash)</option>
+                              <option value="site">Website excluding /wp-admin/</option>
+                            </select>
+                          </label>
+                        </>
+                      )}
+                    </>
+                  )}
+                  <label>Icon
+                    <select value={draft.icon} onChange={event => setDraft({...draft, icon: event.target.value})}>
+                      {Object.keys(icons).map(name => <option key={name} value={name}>{name}</option>)}
+                    </select>
+                  </label>
+                  <label>Color
+                    <input className="color-input" type="color" value={draft.color}
+                      onChange={event => setDraft({...draft, color: event.target.value})}/>
+                  </label>
+                </div>
+                {draft.type === 'group' && <p className="helper">Once saved, edit any shortcut to assign it to this group.</p>}
+                <div className="dialog-actions">
+                  <button className="secondary" onClick={() => setDraft(null)}>Cancel</button>
+                  <button className="primary" onClick={() => void saveEntry()}><Check size={16}/> Save entry</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {!isReady && !error && <span className="sr-only">Loading Kreis...</span>}
