@@ -6,7 +6,7 @@ import { load, type Store } from '@tauri-apps/plugin-store';
 import { ArrowLeft, Check, ChevronDown, CircleHelp, Copy, Minus, Plus, RotateCcw, Save, Settings2, Trash2, X } from 'lucide-react';
 import { focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, hideWheel, launch, openNewBrowserTab, toggleWheel, type BrowserTab } from './bridge';
 import { icons } from './icons';
-import { DEFAULT_SETTINGS, type Entry, type Settings, validateEntry } from './types';
+import { DEFAULT_APPEARANCE, DEFAULT_SETTINGS, WHEEL_FONTS, normalizeAppearance, wheelFontStack, type Entry, type Settings, type WheelAppearance, type WheelFont, validateEntry } from './types';
 import RadialWheel, { type WheelOption } from './RadialWheel';
 
 const DEFAULT_NEW: Entry = { id: '', title: '', type: 'browser', target: 'https://', profile: 'Work', match: 'prefix', icon: 'globe', color: '#6385d7' };
@@ -17,6 +17,7 @@ const window = getCurrentWindow();
 
 export default function App() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [appearanceDraft, setAppearanceDraft] = useState<WheelAppearance>(DEFAULT_APPEARANCE);
   const [screen, setScreen] = useState<'wheel' | 'settings'>('wheel');
   const [isReady, setReady] = useState(false);
   const [error, setError] = useState('');
@@ -76,10 +77,13 @@ export default function App() {
       try {
         const loaded = await load('kreis.json', { autoSave: false });
         const saved = await loaded.get<Settings>('settings');
-        const next = saved?.entries && Array.isArray(saved.entries) ? saved : DEFAULT_SETTINGS;
+        const next: Settings = saved?.entries && Array.isArray(saved.entries)
+          ? { ...DEFAULT_SETTINGS, ...saved, appearance: normalizeAppearance(saved.appearance) }
+          : DEFAULT_SETTINGS;
         if (disposed) return;
         store.current = loaded;
         setSettings(next);
+        setAppearanceDraft(next.appearance);
         setShortcutDraft(next.shortcut);
         try { await registerShortcut(next.shortcut); }
         catch {
@@ -138,6 +142,7 @@ export default function App() {
 
   async function openSettings() {
     resetWheel();
+    setAppearanceDraft(settings.appearance);
     setScreen('settings');
     await window.setSize(editSize);
     await window.center();
@@ -230,6 +235,16 @@ export default function App() {
   }
 
 
+  async function saveAppearance() {
+    setError('');
+    try {
+      const appearance = normalizeAppearance(appearanceDraft);
+      await persist({ ...settings, appearance });
+      setAppearanceDraft(appearance);
+      setNotice('Wheel typography saved.');
+    } catch (cause) { setError(String(cause)); }
+  }
+
   async function saveShortcut() {
     setError('');
     const nextShortcut = shortcutDraft.trim();
@@ -300,6 +315,7 @@ export default function App() {
         <RadialWheel
           key={submenu ? `sub-${submenu.entry.id}-${tabPage}-${wheelEpoch}` : `main-${wheelEpoch}`}
           buttons={wheelButtons}
+          appearance={settings.appearance}
           submenuTitle={submenu?.entry.title}
           tabCount={submenu?.tabs.length}
           busy={busy}
@@ -313,11 +329,45 @@ export default function App() {
         />
       ) : (
         <div className="settings-shell">
-          <header className="settings-header"><div><div className="overline">YOUR SHORTCUT TO EVERYTHING</div><h1>Kreis <small>0.2.0</small></h1><p>Pick a direction. Get back to work.</p></div><button className="icon-button" onClick={() => void closeSettings()} title="Close settings"><X/></button></header>
+          <header className="settings-header"><div><div className="overline">YOUR SHORTCUT TO EVERYTHING</div><h1>Kreis <small>0.3.0</small></h1><p>Pick a direction. Get back to work.</p></div><button className="icon-button" onClick={() => void closeSettings()} title="Close settings"><X/></button></header>
           {error && <div className="alert error" role="alert">{error}</div>}
           {notice && <div className="alert" onClick={() => setNotice('')}>{notice} <X size={14}/></div>}
           <div className="settings-body">
             <section className="setting-section"><div className="section-title"><h2>Global shortcut</h2><span>Anywhere in Windows</span></div><div className="shortcut-row"><input aria-label="Global shortcut" value={shortcutDraft} onChange={event => setShortcutDraft(event.target.value)} placeholder="Control+Space"/><button className="primary" onClick={() => void saveShortcut()}><Save size={16}/> Apply</button></div><p className="helper">Examples: Control+Space, Control+Alt+K, Alt+Shift+Space. If a shortcut is already claimed, Kreis reports an error and preserves the previous binding.</p></section>
+            
+            <section className="setting-section">
+              <div className="section-title"><h2>Wheel typography</h2><span>Main wheel and tab sub-wheels</span></div>
+              <div className="appearance-controls">
+                <label>
+                  Font family
+                  <select value={appearanceDraft.fontFamily}
+                    onChange={event => setAppearanceDraft({ ...appearanceDraft, fontFamily: event.target.value as WheelFont })}>
+                    {WHEEL_FONTS.map(font => <option key={font} value={font}>{font}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span>Shortcut labels <strong>{appearanceDraft.labelSize}px</strong></span>
+                  <input type="range" min={10} max={18} step={1} aria-label="Shortcut label font size"
+                    value={appearanceDraft.labelSize}
+                    onChange={event => setAppearanceDraft({ ...appearanceDraft, labelSize: Number(event.target.value) })}/>
+                </label>
+                <label>
+                  <span>Center label <strong>{appearanceDraft.centerSize}px</strong></span>
+                  <input type="range" min={13} max={24} step={1} aria-label="Center label font size"
+                    value={appearanceDraft.centerSize}
+                    onChange={event => setAppearanceDraft({ ...appearanceDraft, centerSize: Number(event.target.value) })}/>
+                </label>
+              </div>
+              <div className="appearance-preview" style={{ fontFamily: wheelFontStack(appearanceDraft.fontFamily) }}>
+                <span className="sample-label" style={{ fontSize: appearanceDraft.labelSize }}>ChatGPT · Runagaldr</span>
+                <span className="sample-center" style={{ fontSize: appearanceDraft.centerSize }}>KREIS</span>
+              </div>
+              <p className="helper">Uses fonts installed on your PC, with Segoe UI as a fallback. Larger fonts may abbreviate long tab titles; the full title stays in the tooltip.</p>
+              <div className="appearance-actions">
+                <button className="secondary" onClick={() => setAppearanceDraft(DEFAULT_APPEARANCE)}>Reset preview</button>
+                <button className="primary" onClick={() => void saveAppearance()}><Save size={16}/> Apply typography</button>
+              </div>
+            </section>
             <section className="setting-section"><div className="section-title"><h2>Wheel entries <span className="count">{settings.entries.length}/12</span></h2><button className="secondary" disabled={settings.entries.length >= 12} onClick={() => {setDraft({...DEFAULT_NEW}); setError('');}}><Plus size={16}/> Add entry</button></div>
             <div className="entry-list">{settings.entries.map((entry, index) => { const Icon = icons[entry.icon] || icons.rocket; return (<div className="entry-row" key={entry.id}><div className="entry-icon" style={{background: entry.color}}><Icon size={20}/></div><div className="entry-name"><strong>{entry.title}</strong><small>{entry.type === 'app' ? 'Windows app' : `Vivaldi · ${entry.profile}`}</small></div><span className="entry-target" title={entry.target}>{entry.target}</span><div className="entry-actions"><button className="tiny" aria-label={`Move ${entry.title} up`} disabled={index === 0} onClick={() => void moveEntry(index, -1)}>↑</button><button className="tiny" aria-label={`Move ${entry.title} down`} disabled={index === settings.entries.length - 1} onClick={() => void moveEntry(index, 1)}>↓</button><button className="tiny" onClick={() => {setDraft({...entry});setError('');}}>Edit</button><button className="tiny danger" aria-label={`Delete ${entry.title}`} onClick={() => void deleteEntry(entry.id)}><Trash2 size={15}/></button></div></div>);})}</div>
             </section>

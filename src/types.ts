@@ -11,10 +11,48 @@ export type Entry = {
   icon: string;
   color: string;
 };
-export type Settings = { shortcut: string; entries: Entry[] };
+
+/** Preset fonts use locally installed Windows fonts; no downloads or network required. */
+export const WHEEL_FONTS = [
+  'Inter', 'Segoe UI', 'Bahnschrift', 'Arial', 'Verdana',
+  'Tahoma', 'Trebuchet MS', 'Georgia', 'Consolas', 'Courier New'
+] as const;
+
+export type WheelFont = typeof WHEEL_FONTS[number];
+export type WheelAppearance = {
+  fontFamily: WheelFont;
+  labelSize: number;
+  centerSize: number;
+};
+
+export const DEFAULT_APPEARANCE: WheelAppearance = {
+  fontFamily: 'Inter',
+  labelSize: 12,
+  centerSize: 16
+};
+
+/** Old installations have no appearance settings; migrate without touching saved shortcuts. */
+export function normalizeAppearance(value?: Partial<WheelAppearance> | null): WheelAppearance {
+  return {
+    fontFamily: WHEEL_FONTS.includes(value?.fontFamily as WheelFont)
+      ? value!.fontFamily as WheelFont : DEFAULT_APPEARANCE.fontFamily,
+    labelSize: Number.isFinite(value?.labelSize) && value!.labelSize! >= 10 && value!.labelSize! <= 18
+      ? value!.labelSize! : DEFAULT_APPEARANCE.labelSize,
+    centerSize: Number.isFinite(value?.centerSize) && value!.centerSize! >= 13 && value!.centerSize! <= 24
+      ? value!.centerSize! : DEFAULT_APPEARANCE.centerSize
+  };
+}
+
+export function wheelFontStack(font: WheelFont): string {
+  // Quoted names prevent multi-word fonts from being treated as multiple families.
+  return '"' + font + '", "Segoe UI", system-ui, sans-serif';
+}
+
+export type Settings = { shortcut: string; entries: Entry[]; appearance: WheelAppearance };
 
 export const DEFAULT_SETTINGS: Settings = {
   shortcut: 'Control+Space',
+  appearance: DEFAULT_APPEARANCE,
   entries: [
     { id: 'chat', title: 'Google Chat', type: 'browser', target: 'https://chat.google.com/u/0/app/home', profile: 'Work', match: 'prefix', icon: 'message', color: '#47a66a' },
     { id: 'frontend', title: 'Frontend', type: 'browser', target: 'https://ihmcfo.diocesanweb.org/', profile: 'Work', match: 'site', icon: 'globe', color: '#448bd4' },
