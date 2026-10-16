@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
@@ -7,6 +7,7 @@ import { ArrowLeft, Check, ChevronDown, CircleHelp, Copy, Minus, Plus, RotateCcw
 import { focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, hideWheel, launch, openNewBrowserTab, toggleWheel, type BrowserTab } from './bridge';
 import { icons } from './icons';
 import { DEFAULT_SETTINGS, type Entry, type Settings, validateEntry } from './types';
+import RadialWheel, { type WheelOption } from './RadialWheel';
 
 const DEFAULT_NEW: Entry = { id: '', title: '', type: 'browser', target: 'https://', profile: 'Work', match: 'prefix', icon: 'globe', color: '#6385d7' };
 const wheelSize = 600;
@@ -31,9 +32,11 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const selectionGeneration = useRef(0);
+  const [wheelEpoch, setWheelEpoch] = useState(0);
 
   const resetWheel = useCallback(() => {
     selectionGeneration.current++;
+    setWheelEpoch(current => current + 1);
     busyRef.current = false;
     setBusy(false);
     setSubmenu(null);
@@ -265,7 +268,7 @@ export default function App() {
 
   const pageCount = submenu ? Math.ceil(submenu.tabs.length / tabsPerPage) : 1;
   const visibleTabs = submenu ? submenu.tabs.slice(tabPage * tabsPerPage, (tabPage + 1) * tabsPerPage) : [];
-  const wheelButtons: { key: string; title: string; color: string; icon: string; tooltip: string; onSelect: () => void; isNew?: boolean }[] = submenu
+  const wheelButtons: WheelOption[] = submenu
     ? [
         ...visibleTabs.map(tab => ({
           key: `tab-${tab.id}`,
@@ -294,45 +297,20 @@ export default function App() {
   return (
     <main className={screen === 'wheel' ? 'wheel-screen' : 'settings-screen'}>
       {screen === 'wheel' ? (
-        <div className="wheel" role="menu" aria-label={submenu ? `${submenu.entry.title} tabs` : 'Kreis launcher'}>
-          <div className="outer-orbit" />
-          {submenu && <p className="wheel-subheading">{submenu.entry.title} · {submenu.tabs.length} open tabs</p>}
-          {wheelButtons.map((item, i) => {
-            const angle = -Math.PI / 2 + i * Math.PI * 2 / wheelButtons.length;
-            const radius = wheelButtons.length > 9 ? 240 : 224;
-            const x = wheelSize / 2 + Math.cos(angle) * radius;
-            const y = wheelSize / 2 + Math.sin(angle) * radius;
-            const Icon = item.isNew ? Plus : (icons[item.icon] || icons.rocket);
-            return (
-              <button key={item.key} className={submenu && !item.isNew ? 'wheel-item wheel-item--tab' : 'wheel-item'}
-                style={{ left: x, top: y, '--accent': item.color } as CSSProperties}
-                disabled={busy} onClick={item.onSelect} title={item.tooltip} aria-label={item.tooltip}>
-                <span className="wheel-icon"><Icon size={25}/></span>
-                <span className={submenu && !item.isNew ? 'wheel-label wheel-tab-label' : 'wheel-label'}>{item.title}</span>
-              </button>
-            );
-          })}
-          {submenu ? (
-            <button className="wheel-center" onClick={() => { setSubmenu(null); setTabPage(0); setError(''); }}
-              disabled={busy} aria-label="Back to main Kreis">
-              <ArrowLeft size={30}/><span>BACK</span><span className="sub-context">{submenu.entry.title}</span>
-            </button>
-          ) : (
-            <button className="wheel-center" onClick={() => void openSettings()} aria-label="Open Kreis settings">
-              <span className="kreis-mark">K</span><span>SETTINGS</span><Settings2 size={15}/>
-            </button>
-          )}
-          {submenu && pageCount > 1 && (
-            <div className="wheel-page-controls">
-              <button disabled={busy || tabPage === 0} onClick={() => setTabPage(current => current - 1)} aria-label="Previous page">‹ Prev</button>
-              <span>{tabPage + 1} / {pageCount}</span>
-              <button disabled={busy || tabPage >= pageCount - 1} onClick={() => setTabPage(current => current + 1)} aria-label="Next page">Next ›</button>
-            </div>
-          )}
-          <button className="close-wheel" onClick={() => void closeLauncher()} aria-label="Close wheel"><X size={20}/></button>
-          {busy && <p className="wheel-loading">Finding your window…</p>}
-          {error && <p className="wheel-error">{error}</p>}
-        </div>
+        <RadialWheel
+          key={submenu ? `sub-${submenu.entry.id}-${tabPage}-${wheelEpoch}` : `main-${wheelEpoch}`}
+          buttons={wheelButtons}
+          submenuTitle={submenu?.entry.title}
+          tabCount={submenu?.tabs.length}
+          busy={busy}
+          error={error}
+          page={tabPage}
+          pageCount={pageCount}
+          onSettings={() => void openSettings()}
+          onBack={() => { setSubmenu(null); setTabPage(0); setError(''); }}
+          onClose={() => void closeLauncher()}
+          onPageChange={setTabPage}
+        />
       ) : (
         <div className="settings-shell">
           <header className="settings-header"><div><div className="overline">YOUR SHORTCUT TO EVERYTHING</div><h1>Kreis <small>0.2.0</small></h1><p>Pick a direction. Get back to work.</p></div><button className="icon-button" onClick={() => void closeSettings()} title="Close settings"><X/></button></header>
