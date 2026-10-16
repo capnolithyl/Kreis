@@ -67,13 +67,17 @@ export function matchesTab(tab, target, mode) {
   return tabUrls(tab).some(current => matchesUrl(current, target, mode));
 }
 
-export function findMatchingTab(tabs, target, mode) {
+export function findMatchingTabs(tabs, target, mode) {
   const matching = tabs.filter(tab => Number.isInteger(tab.id) && Number.isInteger(tab.windowId) &&
     matchesTab(tab, target, mode));
   // Prefer the already-active tab, then the most recently used matching tab.
   matching.sort((a, b) => Number(Boolean(b.active)) - Number(Boolean(a.active)) ||
     (b.lastAccessed || 0) - (a.lastAccessed || 0));
-  return matching[0] || null;
+  return matching;
+}
+
+export function findMatchingTab(tabs, target, mode) {
+  return findMatchingTabs(tabs, target, mode)[0] || null;
 }
 
 export function lookupDiagnostics(tabs, target, mode) {

@@ -71,3 +71,14 @@ input::placeholder { color: #687692; }
 .form-grid input {width:100%;}
 .form-grid .color-input {height:42px; padding:5px;}
 .dialog-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:23px; }
+
+/* Nested tab navigation preserves the main radial geometry. */
+.wheel-subheading { position: absolute; top: 135px; left: 160px; right: 160px; color: #bcc8e7; font-size: 12px; font-weight: 700; letter-spacing: .5px; text-align: center; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; margin: 0; pointer-events: none; }
+.wheel-center .sub-context { font-size: 10px; font-weight: 650; letter-spacing: 0; color: #b9c5e6; max-width: 132px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wheel-page-controls { position: absolute; left: 12px; right: 12px; bottom: 4px; display: flex; justify-content: space-between; align-items: center; gap: 14px; color: #c6cee9; font-size: 11px; z-index: 3; }
+.wheel-page-controls button { background: #1f2a42; border: 1px solid #516282; border-radius: 10px; padding: 6px 12px; color: #e7edff; font-size: 12px; }
+.wheel-page-controls button:hover:not(:disabled) { background: #354468; }
+.wheel-loading { position: absolute; left: 210px; right: 210px; bottom: 3px; font-size: 11px; text-align: center; color: #b6c9e1; pointer-events: none; }
+
+.wheel-item--tab { gap: 6px; }
+.wheel-tab-label { white-space: normal; line-height: 1.2; max-width: 91px; max-height: 44px; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; }

@@ -25,16 +25,55 @@ fn focus_application(executable: String) -> Result<(), String> {
     { let _ = executable; Err("Kreis currently supports Windows only".into()) }
 }
 
+fn validate_browser(url: &str, profile: &str, mode: &str) -> Result<(), String> {
+    let parsed = url::Url::parse(url).map_err(|_| "Invalid website URL")?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return Err("Only HTTP and HTTPS links are allowed".into());
+    }
+    if !["Work", "Personal"].contains(&profile) { return Err("Unknown browser profile".into()); }
+    if !["exact", "prefix", "site"].contains(&mode) { return Err("Unknown matching mode".into()); }
+    Ok(())
+}
+
 #[tauri::command]
 fn activate_browser(bridge: tauri::State<'_, Arc<Bridge>>, url: String, profile: String, match_mode: String) -> Result<bool, String> {
-    let parsed = url::Url::parse(&url).map_err(|_| "Invalid website URL")?;
-    if parsed.scheme() != "http" && parsed.scheme() != "https" { return Err("Only HTTP and HTTPS links are allowed".into()); }
-    if !["Work", "Personal"].contains(&profile.as_str()) { return Err("Unknown browser profile".into()); }
-    if !["exact", "prefix", "site"].contains(&match_mode.as_str()) { return Err("Unknown matching mode".into()); }
+    validate_browser(&url, &profile, &match_mode)?;
     if bridge.send(&profile, &url, &match_mode) { return Ok(true); }
     // If the extension is not connected, the fallback is the DEFAULT browser/profile.
     webbrowser::open(&url).map_err(|e| format!("Could not open {url}: {e}"))?;
     Ok(false)
+}
+
+/// None means no compatible extension response; the frontend keeps legacy behavior.
+#[tauri::command]
+async fn query_browser_tabs(
+    bridge: tauri::State<'_, Arc<Bridge>>,
+    url: String,
+    profile: String,
+    match_mode: String
+) -> Result<Option<Vec<bridge::BrowserTab>>, String> {
+    validate_browser(&url, &profile, &match_mode)?;
+    Ok(bridge.matching_tabs(&profile, &url, &match_mode).await)
+}
+
+#[tauri::command]
+fn focus_browser_tab(bridge: tauri::State<'_, Arc<Bridge>>, profile: String, tab_id: i32) -> Result<(), String> {
+    if !["Work", "Personal"].contains(&profile.as_str()) { return Err("Unknown browser profile".into()); }
+    if tab_id < 0 { return Err("Invalid tab ID".into()); }
+    if bridge.command(&profile, serde_json::json!({"type":"focus-tab","tabId": tab_id})) {
+        Ok(())
+    } else {
+        Err(format!("The {profile} extension disconnected. Please retry."))
+    }
+}
+
+#[tauri::command]
+fn open_browser_tab(bridge: tauri::State<'_, Arc<Bridge>>, url: String, profile: String) -> Result<(), String> {
+    validate_browser(&url, &profile, "prefix")?;
+    if bridge.command(&profile, serde_json::json!({"type":"open-new","url":url})) {
+        return Ok(());
+    }
+    webbrowser::open(&url).map_err(|e| format!("Could not open {url}: {e}"))
 }
 
 fn show_near_cursor(window: &tauri::WebviewWindow) -> Result<(), String> {
@@ -58,6 +97,8 @@ fn show_near_cursor(window: &tauri::WebviewWindow) -> Result<(), String> {
     window.set_position(PhysicalPosition::new(left, top)).map_err(|e| e.to_string())?;
     window.show().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())?;
+    // Reset the nested wheel whenever the tray or hotkey opens Kreis anew.
+    let _ = window.emit("kreis-wheel-opened", ());
     Ok(())
 }
 
@@ -77,7 +118,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![pairing_key, connected_profiles, focus_application, activate_browser, toggle_at_cursor, hide_wheel])
+        .invoke_handler(tauri::generate_handler![pairing_key, connected_profiles, focus_application, activate_browser, query_browser_tabs, focus_browser_tab, open_browser_tab, toggle_at_cursor, hide_wheel])
         .setup(|app| {
             let token = bridge::load_or_create_token(app.handle()).map_err(std::io::Error::other)?;
             let state = Arc::new(Bridge::new(token));
