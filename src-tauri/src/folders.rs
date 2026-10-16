@@ -198,8 +198,10 @@ fn keyboard(vk: u16, flags: u32) -> INPUT {
 }
 
 fn send_keys(inputs: &[INPUT]) -> bool {
-    unsafe { SendInput(inputs.len() as u32, inputs.as_ptr(), std::mem::size_of::<INPUT>() as i32) }
-        == inputs.len() as u32
+    let sent = unsafe {
+        SendInput(inputs.len() as u32, inputs.as_ptr(), std::mem::size_of::<INPUT>() as i32)
+    };
+    sent == inputs.len() as u32
 }
 
 fn shortcut(letter: u16) -> bool {
