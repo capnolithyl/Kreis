@@ -588,7 +588,7 @@ export default function App() {
                   const isGroup = entry.type === 'group';
                   return (
                     <div className={`entry-row${isGroup ? ' entry-row--group' : ''}${depth > 0 ? ' entry-row--child' : ''}`} key={entry.id}
-                      style={{ '--nest-depth': depth } as CSSProperties}>
+                      style={{ '--indent-size': `${Math.min(depth * 22, 132)}px` } as CSSProperties}>
                       <div className="entry-icon" style={{background: entry.color}}><Icon size={20}/></div>
                       <div className="entry-name">
                         <strong>{entry.title}</strong>
