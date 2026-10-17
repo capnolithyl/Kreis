@@ -3,11 +3,47 @@ mod bridge;
 mod native_windows;
 #[cfg(windows)]
 mod folders;
+#[cfg(windows)]
+mod context_menu;
 
 use std::sync::Arc;
-use tauri::{Emitter, Manager, PhysicalPosition};
+use tauri::{Emitter, Manager, PhysicalPosition, LogicalSize};
+#[cfg(windows)]
+use std::sync::Mutex;
 use tauri::{menu::{Menu, MenuItem}, tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}};
 use bridge::Bridge;
+
+#[cfg(windows)]
+struct StartupContext(Mutex<Option<context_menu::ContextEntry>>);
+
+#[cfg(windows)]
+#[tauri::command]
+fn take_startup_context(state: tauri::State<'_, StartupContext>) -> Option<context_menu::ContextEntry> {
+    state.0.lock().ok()?.take()
+}
+
+#[cfg(windows)]
+#[tauri::command]
+fn set_windows_context_menu(enabled: bool) -> Result<(), String> {
+    context_menu::set_enabled(enabled)
+}
+
+#[cfg(windows)]
+#[tauri::command]
+fn windows_context_menu_enabled() -> bool {
+    context_menu::is_enabled()
+}
+
+/// Bring the picker to the cursor rather than silently editing stored entries.
+#[cfg(windows)]
+pub(crate) fn present_context_entry(app: &tauri::AppHandle, entry: context_menu::ContextEntry) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_size(LogicalSize::new(600.0, 600.0));
+        if show_near_cursor(&window).is_ok() {
+            let _ = app.emit("kreis-context-add", entry);
+        }
+    }
+}
 
 #[tauri::command]
 fn pairing_key(bridge: tauri::State<'_, Arc<Bridge>>) -> String {
@@ -147,16 +183,26 @@ fn hide_wheel(window: tauri::WebviewWindow) -> Result<(), String> {
 }
 
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(windows)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+        if let Some(request) = context_menu::from_args(&args) {
+            present_context_entry(app, request);
+        }
+    }));
+    builder
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![pairing_key, connected_profiles, open_folder, focus_application, list_application_windows, focus_application_window, activate_browser, query_browser_tabs, focus_browser_tab, open_browser_tab, toggle_at_cursor, hide_wheel])
+        .invoke_handler(tauri::generate_handler![pairing_key, connected_profiles, open_folder, focus_application, list_application_windows, focus_application_window, activate_browser, query_browser_tabs, focus_browser_tab, open_browser_tab, toggle_at_cursor, hide_wheel, take_startup_context, set_windows_context_menu, windows_context_menu_enabled])
         .setup(|app| {
+            #[cfg(windows)]
+            app.manage(StartupContext(Mutex::new(context_menu::from_args(&std::env::args().collect::<Vec<_>>()))));
             let token = bridge::load_or_create_token(app.handle()).map_err(std::io::Error::other)?;
             let state = Arc::new(Bridge::new(token));
             app.manage(state.clone());
+            let bridge_app = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                if let Err(error) = bridge::serve(state).await { eprintln!("{error}"); }
+                if let Err(error) = bridge::serve(state, bridge_app).await { eprintln!("{error}"); }
             });
 
             let open = MenuItem::with_id(app, "open", "Open Kreis", true, None::<&str>)?;

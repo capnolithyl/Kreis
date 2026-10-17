@@ -226,3 +226,13 @@ Write-Host 'Kreis installer checksum verified.'
 A matching checksum detects corruption or a mismatch between the EXE and its manifest, but is **not** the same thing as code signing or a malware-free guarantee. Verify that the archive came from the expected GitHub Actions run.
 
 The repository commits `package-lock.json` and `src-tauri/Cargo.lock`. Both Windows workflows use `npm ci`, check Cargo's `--locked` resolution, and fail if either lockfile changes during the build. The runner image, Node, Rust, and GitHub Actions dependencies are version-pinned for better repeatability. Update lockfiles and toolchain pins intentionally when upgrading dependencies or patching the build environment.
+
+## Add to Kreis from context menus (0.9.0)
+
+**Vivaldi:** Reload the unpacked `extension/` companion in `vivaldi://extensions` after upgrading. Right-click any web link and select **Add link to Kreis**, or right-click a page and choose **Add page to Kreis**. Kreis opens a confirmation screen where you can edit the label, select the Work/Personal profile, and place the shortcut on the main wheel or in any nested group. Links are only sent over the already-paired, local WebSocket connection. If Kreis is temporarily disconnected, one pending browser addition is retained for up to five minutes.
+
+**File Explorer:** Open Kreis → Settings → **Integrations** and select **Enable Explorer context menus** (opt-in). The per-user, reversible Windows registry entries add **Add to Kreis** to folders, `.exe` applications, and `.lnk` desktop/Start Menu shortcuts selected in Explorer. The command opens the same confirmation screen and works when Kreis is already running or starts it when needed. On Windows 11, the traditional registry verb normally appears under **Show more options**. Windows taskbar / Start Menu tiles are **not** Explorer file context menus, so those right-click menus are not covered.
+
+The picker validates the target and refuses any destination with 12 shortcuts. It never silently creates or overwrites shortcuts. `.lnk` app entries use the Windows Shell to open the shortcut; since the underlying executable is not resolved, unlike `.exe` entries these do not automatically focus a previously running app window.
+
+**Remove the integration:** Return to Settings → Integrations → **Disable Explorer context menus**. This removes only Kreis's per-user registry keys. Administrator privileges are not required. Disabling the Vivaldi context menus is done by disabling or removing the companion extension.

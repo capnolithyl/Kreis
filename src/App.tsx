@@ -4,7 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { load, type Store } from '@tauri-apps/plugin-store';
 import { ArrowLeft, Check, ChevronDown, CircleHelp, Copy, Minus, Plus, RotateCcw, Save, Settings2, Trash2, X } from 'lucide-react';
-import { focusAppWindow, focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, hideWheel, launch, listAppWindows, openFolder, openNewBrowserTab, toggleWheel, type AppWindow, type BrowserTab } from './bridge';
+import { focusAppWindow, focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, hideWheel, launch, listAppWindows, openFolder, openNewBrowserTab, toggleWheel, type AppWindow, type BrowserTab, type ContextAdd, takeStartupContext, windowsContextMenuEnabled, setWindowsContextMenu } from './bridge';
 import { icons } from './icons';
 import { DEFAULT_APPEARANCE, DEFAULT_SETTINGS, WHEEL_FONTS, normalizeAppearance, wheelFontStack, type Entry, type Settings, type WheelAppearance, type WheelFont, validateEntry } from './types';
 import RadialWheel, { type WheelOption } from './RadialWheel';
@@ -33,14 +33,15 @@ const settingsSizes: Record<SettingsCategory, LogicalSize> = {
   hotkey: new LogicalSize(740, 390),
   typography: new LogicalSize(790, 485),
   shortcuts: new LogicalSize(900, 710),
-  connection: new LogicalSize(770, 465)
+  connection: new LogicalSize(770, 465),
+  integrations: new LogicalSize(770, 455)
 };
 const window = getCurrentWindow();
 
 export default function App() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [appearanceDraft, setAppearanceDraft] = useState<WheelAppearance>(DEFAULT_APPEARANCE);
-  const [screen, setScreen] = useState<'wheel' | 'settings'>('wheel');
+  const [screen, setScreen] = useState<'wheel' | 'settings' | 'context'>('wheel');
   const [settingsSection, setSettingsSection] = useState<SettingsCategory>('hotkey');
   const previousWheelPosition = useRef<Awaited<ReturnType<typeof window.outerPosition>> | null>(null);
   const [isReady, setReady] = useState(false);
@@ -61,6 +62,25 @@ export default function App() {
   const [pendingGroup, setPendingGroup] = useState<{ sourceId: string; targetId: string; sourceTitle: string; targetTitle: string; name: string } | null>(null);
   const [wheelFeedback, setWheelFeedback] = useState('');
   const [undoEntries, setUndoEntries] = useState<Entry[] | null>(null);
+  const [contextAdd, setContextAdd] = useState<ContextAdd | null>(null);
+  const [contextLabel, setContextLabel] = useState('');
+  const [contextGroupId, setContextGroupId] = useState('');
+  const [contextProfile, setContextProfile] = useState<'Work' | 'Personal'>('Work');
+  const [contextMenuEnabled, setContextMenuEnabled] = useState(false);
+  const latestSettings = useRef(settings);
+  latestSettings.current = settings;
+
+  function openContextPicker(entry: ContextAdd) {
+    if (!['browser', 'folder', 'app'].includes(entry.kind) || !entry.target) return;
+    setContextAdd(entry);
+    setContextLabel(entry.title.slice(0, 30) || 'New shortcut');
+    setContextGroupId(suggestParent(latestSettings.current.entries, MAX_ITEMS_PER_WHEEL) || '');
+    setContextProfile(entry.profile === 'Personal' ? 'Personal' : 'Work');
+    setError('');
+    setNotice('');
+    setScreen('context');
+  }
+
 
   const resetWheel = useCallback(() => {
     selectionGeneration.current++;
@@ -76,6 +96,7 @@ export default function App() {
   }, []);
 
   async function closeLauncher() {
+    setContextAdd(null);
     resetWheel();
     await hideWheel();
   }
@@ -112,6 +133,7 @@ export default function App() {
           : DEFAULT_SETTINGS;
         if (disposed) return;
         store.current = loaded;
+        latestSettings.current = next;
         setSettings(next);
         setAppearanceDraft(next.appearance);
         setShortcutDraft(next.shortcut);
@@ -132,8 +154,20 @@ export default function App() {
           resetWheel();
           setScreen('wheel');
         });
-        const fn = () => { unlistenSettings(); unlistenWheel(); };
-        if (disposed) fn(); else unlisten = fn;
+        const unlistenContext = await listen<ContextAdd>('kreis-context-add', event => {
+          openContextPicker(event.payload);
+        });
+        const fn = () => { unlistenSettings(); unlistenWheel(); unlistenContext(); };
+        if (disposed) { fn(); return; }
+        unlisten = fn;
+        const incoming = await takeStartupContext();
+        if (!disposed && incoming) {
+          openContextPicker(incoming);
+          await window.setSize(new LogicalSize(600, 600));
+          await window.center();
+          await window.show();
+          await window.setFocus();
+        }
       } catch (cause) { setError(String(cause)); }
     })();
     return () => {
@@ -144,6 +178,43 @@ export default function App() {
   // Avoid re-running initialization while settings change.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function saveContextAddition() {
+    if (!contextAdd || busyRef.current) return;
+    const entry: Entry = {
+      id: crypto.randomUUID(),
+      title: contextLabel.trim(),
+      type: contextAdd.kind,
+      target: contextAdd.target,
+      profile: contextProfile,
+      match: contextAdd.kind === 'browser' ? 'exact' : 'prefix',
+      icon: contextAdd.kind === 'folder' ? 'folder' : contextAdd.kind === 'app' ? 'rocket' : 'globe',
+      color: contextAdd.kind === 'folder' ? '#c1a062' : contextAdd.kind === 'app' ? '#438ba8' : '#6385d7',
+      groupId: contextGroupId || undefined
+    };
+    const validation = validateEntry(entry);
+    if (validation) return setError(validation);
+    const entries = [...settings.entries, entry];
+    const hierarchyError = validateHierarchy(entries, MAX_ITEMS_PER_WHEEL);
+    if (hierarchyError) return setError(hierarchyError);
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      await persist({ ...settings, entries });
+      await closeLauncher();
+    } catch (cause) { setError(String(cause)); }
+    finally { busyRef.current = false; setBusy(false); }
+  }
+
+  async function toggleContextMenuIntegration() {
+    setError('');
+    try {
+      const enabled = !contextMenuEnabled;
+      await setWindowsContextMenu(enabled);
+      setContextMenuEnabled(await windowsContextMenuEnabled());
+      setNotice(enabled ? 'Added Explorer context menus.' : 'Removed Explorer context menus.');
+    } catch (cause) { setError(String(cause)); }
+  }
 
   async function persist(next: Settings) {
     if (!store.current) throw new Error('Settings storage is not ready.');
@@ -157,6 +228,7 @@ export default function App() {
       if (event.key === 'Escape') {
         event.preventDefault();
         if (draft) { setDraft(null); return; }
+        if (screen === 'context') { void closeLauncher(); return; }
         if (pendingGroup) { setPendingGroup(null); return; }
         if (screen === 'settings') { void backToSettingsWheel(); return; }
         void closeLauncher();
@@ -202,6 +274,9 @@ export default function App() {
         const [key, connected] = await Promise.all([getPairingKey(), getProfiles()]);
         setPairingKey(key);
         setProfiles(connected);
+      }
+      if (section === 'integrations') {
+        setContextMenuEnabled(await windowsContextMenuEnabled());
       }
     } catch (cause) { setError(String(cause)); }
   }
@@ -579,7 +654,42 @@ export default function App() {
 
   return (
     <main className={screen === 'wheel' ? 'wheel-screen' : 'settings-screen'}>
-      {screen === 'wheel' ? (
+      {screen === 'context' && contextAdd ? (
+        <div className="quick-add-shell">
+          <div className="overline">ADD TO KREIS</div>
+          <div className="quick-add-heading">
+            <h1>New {contextAdd.kind === 'browser' ? 'browser link' : contextAdd.kind === 'folder' ? 'folder' : 'application'} shortcut</h1>
+            <button className="icon-button" onClick={() => void closeLauncher()} aria-label="Cancel Add to Kreis"><X/></button>
+          </div>
+          <p className="quick-add-target" title={contextAdd.target}>{contextAdd.target}</p>
+          <label>Shortcut label
+            <input autoFocus maxLength={30} value={contextLabel} onChange={event => setContextLabel(event.target.value)}/>
+          </label>
+          <label>Place shortcut in
+            <select value={contextGroupId} onChange={event => setContextGroupId(event.target.value)}>
+              <option value="" disabled={getChildren(settings.entries).length >= MAX_ITEMS_PER_WHEEL}>Main Kreis</option>
+              {flattenHierarchy(settings.entries).filter(item => item.entry.type === 'group').map(({entry, depth}) => (
+                <option key={entry.id} value={entry.id} disabled={getChildren(settings.entries, entry.id).length >= MAX_ITEMS_PER_WHEEL}>
+                  {`${'　'.repeat(depth)}↳ ${entry.title}`}
+                  {getChildren(settings.entries, entry.id).length >= MAX_ITEMS_PER_WHEEL ? ' (full)' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          {contextAdd.kind === 'browser' && <label>Vivaldi profile
+            <select value={contextProfile} onChange={event => setContextProfile(event.target.value as 'Work' | 'Personal')}>
+              <option value="Work">Work</option>
+              <option value="Personal">Personal</option>
+            </select>
+          </label>}
+          <p className="helper">Choose any nested group, or Main Kreis. Nothing is saved until you confirm.</p>
+          {error && <p className="dialog-error" role="alert">{error}</p>}
+          <div className="quick-add-actions">
+            <button className="secondary" onClick={() => void closeLauncher()}>Cancel</button>
+            <button className="primary" disabled={busy} onClick={() => void saveContextAddition()}><Check size={16}/> Add shortcut</button>
+          </div>
+        </div>
+      ) : screen === 'wheel' ? (
         <RadialWheel
           key={activeLevel ? `${activeLevel.kind}-${activeLevel.entry.id}-${tabPage}-${wheelEpoch}` : `main-${wheelEpoch}`}
           buttons={wheelButtons}
@@ -614,7 +724,7 @@ export default function App() {
                 aria-label="Back to Settings wheel" title="Back to Settings wheel"><ArrowLeft size={20}/></button>
               <div>
                 <div className="overline">KREIS SETTINGS</div>
-                <h1>{settingsCategoryTitle(settingsSection)} <small>0.8.0</small></h1>
+                <h1>{settingsCategoryTitle(settingsSection)} <small>0.9.0</small></h1>
                 <p>{SETTINGS_CATEGORIES.find(category => category.key === settingsSection)?.description}</p>
               </div>
             </div>
@@ -711,6 +821,17 @@ export default function App() {
                   );
                 })}
               </div>
+            </section>}
+            {settingsSection === 'integrations' && <section className="setting-section">
+              <div className="section-title"><h2>Explorer context menus</h2><span>Current Windows user only</span></div>
+              <p className="helper">Add “Add to Kreis” when right-clicking folders, .exe files and .lnk shortcuts in File Explorer. On Windows 11 the entry is typically under “Show more options.” This uses per-user registry entries, without administrator access.</p>
+              <div className="shortcut-row" style={{marginTop: 20}}>
+                <button className="primary" onClick={() => void toggleContextMenuIntegration()}>
+                  {contextMenuEnabled ? 'Disable Explorer context menus' : 'Enable Explorer context menus'}
+                </button>
+                <strong className={contextMenuEnabled ? 'online' : 'offline'}>{contextMenuEnabled ? 'Enabled' : 'Disabled'}</strong>
+              </div>
+              <p className="helper">Right-click any website link or page in Vivaldi for “Add link/page to Kreis.” Reload the unpacked extension after upgrading so Vivaldi grants the new contextMenus permission. Kreis must be running in the tray for the browser action to arrive.</p>
             </section>}
             {settingsSection === 'connection' && <section className="setting-section"><div className="section-title"><h2>Browser connection</h2><button className="secondary" onClick={() => void getProfiles().then(setProfiles)}>Refresh</button></div><div className="profiles"><div>Work <strong className={profiles.includes('Work') ? 'online' : 'offline'}>{profiles.includes('Work') ? 'Connected' : 'Not connected'}</strong></div><div>Personal <strong className={profiles.includes('Personal') ? 'online' : 'offline'}>{profiles.includes('Personal') ? 'Connected' : 'Not connected'}</strong></div></div><label className="helper" htmlFor="pairing-key">Pairing key (paste into each Vivaldi profile's Kreis extension)</label><div className="shortcut-row"><input id="pairing-key" readOnly type="password" value={pairingKey}/><button className="secondary" onClick={() => void navigator.clipboard.writeText(pairingKey)}><Copy size={15}/> Copy</button></div><p className="helper">The extension switches to existing tabs, including tabs in different Vivaldi windows. When disconnected, Kreis opens the URL with your default browser instead.</p></section>}
             <div className="bottom-actions">

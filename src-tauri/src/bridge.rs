@@ -112,18 +112,19 @@ pub fn load_or_create_token(app: &tauri::AppHandle) -> Result<String, String> {
     Ok(token)
 }
 
-pub async fn serve(bridge: Arc<Bridge>) -> Result<(), String> {
+pub async fn serve(bridge: Arc<Bridge>, app: tauri::AppHandle) -> Result<(), String> {
     use tokio::net::TcpListener;
     let listener = TcpListener::bind(("127.0.0.1", BRIDGE_PORT)).await
         .map_err(|e| format!("Could not bind Kreis browser bridge: {e}"))?;
     loop {
         let (stream, _) = listener.accept().await.map_err(|e| e.to_string())?;
         let state = bridge.clone();
-        tauri::async_runtime::spawn(async move { if let Err(error) = serve_client(stream, state).await { eprintln!("Kreis browser bridge: {error}"); } });
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move { if let Err(error) = serve_client(stream, state, app).await { eprintln!("Kreis browser bridge: {error}"); } });
     }
 }
 
-async fn serve_client(stream: tokio::net::TcpStream, bridge: Arc<Bridge>) -> Result<(), String> {
+async fn serve_client(stream: tokio::net::TcpStream, bridge: Arc<Bridge>, app: tauri::AppHandle) -> Result<(), String> {
     // Reject connections from websites. Only unpacked Chromium extension origins are accepted.
     let ws = accept_hdr_async(stream, |request: &tokio_tungstenite::tungstenite::handshake::server::Request, response| {
         let trusted = request.headers().get("origin")
@@ -163,6 +164,27 @@ async fn serve_client(stream: tokio::net::TcpStream, bridge: Arc<Bridge>) -> Res
                         } else if value.get("type").and_then(Value::as_str) == Some("tabs-result") {
                             if let Some(name) = profile.as_ref() {
                                 bridge.handle_lookup_result(name, &value);
+                            }
+                        } else if value.get("type").and_then(Value::as_str) == Some("add-context") {
+                            // Only a paired browser profile can ask to populate the picker.
+                            // Never accept code, executable paths or arbitrary URL schemes.
+                            #[cfg(windows)]
+                            if let (Some(name), Some(url)) = (
+                                profile.as_ref(), value.get("url").and_then(Value::as_str)
+                            ) {
+                                if url.len() <= 4096 && url::Url::parse(url).is_ok_and(|parsed|
+                                    matches!(parsed.scheme(), "http" | "https")
+                                ) {
+                                    let title = value.get("title").and_then(Value::as_str)
+                                        .unwrap_or("Browser link").trim()
+                                        .chars().take(30).collect::<String>();
+                                    crate::present_context_entry(&app, crate::context_menu::ContextEntry {
+                                        kind: "browser".into(), target: url.into(),
+                                        title: if title.is_empty() { "Browser link".into() } else { title },
+                                        profile: Some(name.to_string()),
+                                    });
+                                    let _ = tx.send(json!({"type":"context-add-received"}).to_string());
+                                }
                             }
                         }
                     }

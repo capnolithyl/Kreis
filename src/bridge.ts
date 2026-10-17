@@ -39,3 +39,15 @@ export const getProfiles = () => invoke<string[]>('connected_profiles');
 export const getPairingKey = () => invoke<string>('pairing_key');
 export const toggleWheel = () => invoke<void>('toggle_at_cursor');
 export const hideWheel = () => invoke<void>('hide_wheel');
+
+export type ContextAdd = {
+  kind: 'browser' | 'folder' | 'app';
+  target: string;
+  title: string;
+  profile?: Profile | null;
+};
+
+/** An Explorer context command may launch Kreis when it is not running yet. */
+export const takeStartupContext = () => invoke<ContextAdd | null>('take_startup_context');
+export const windowsContextMenuEnabled = () => invoke<boolean>('windows_context_menu_enabled');
+export const setWindowsContextMenu = (enabled: boolean) => invoke<void>('set_windows_context_menu', { enabled });

@@ -1,5 +1,6 @@
 /* Kreis browser companion. Runs independently in each Vivaldi profile. */
 import { findMatchingTab, findMatchingTabs, lookupDiagnostics } from './tab-finder.js';
+import { contextMenuPayload } from './context-add.js';
 
 const ENDPOINT = 'ws://127.0.0.1:43991';
 let socket = null;
@@ -7,6 +8,45 @@ let reconnectTimer = null;
 let heartbeat = null;
 let isConnecting = false;
 let status = 'Disconnected';
+let authenticated = false;
+
+function installContextMenus() {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: 'kreis-add-link', title: 'Add link to Kreis', contexts: ['link']
+    });
+    chrome.contextMenus.create({
+      id: 'kreis-add-page', title: 'Add page to Kreis', contexts: ['page']
+    });
+  });
+}
+
+async function flushPendingContextAdd() {
+  if (!authenticated || !socket || socket.readyState !== WebSocket.OPEN) return;
+  const { pendingContextAdd } = await chrome.storage.local.get('pendingContextAdd');
+  if (!pendingContextAdd) return;
+  // A stale action should not surprise the user hours after restarting Kreis.
+  if (Date.now() - pendingContextAdd.at > 5 * 60 * 1000) {
+    await chrome.storage.local.remove('pendingContextAdd');
+    return;
+  }
+  if (socket?.readyState !== WebSocket.OPEN || !authenticated) return;
+  socket.send(JSON.stringify({
+    type: 'add-context', url: pendingContextAdd.url, title: pendingContextAdd.title
+  }));
+  await chrome.storage.local.remove('pendingContextAdd');
+}
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  void (async () => {
+    const request = contextMenuPayload(info, tab);
+    if (!request) return;
+    await chrome.storage.local.set({ pendingContextAdd: request });
+    if (authenticated) await flushPendingContextAdd();
+    else { setStatus('Waiting for Kreis to connect'); void connect(); }
+  })().catch(error => setStatus('Add to Kreis failed: ' + String(error)));
+});
+
 
 function setStatus(value) {
   status = value;
@@ -117,6 +157,7 @@ function clearConnection() {
     old.close();
   }
   isConnecting = false;
+  authenticated = false;
 }
 
 function scheduleReconnect() {
@@ -147,7 +188,11 @@ async function connect() {
     ws.onmessage = event => {
       try {
         const message = JSON.parse(event.data);
-        if (message.type === 'ready') setStatus('Connected');
+        if (message.type === 'ready') {
+          authenticated = true;
+          setStatus('Connected');
+          void flushPendingContextAdd().catch(error => console.error('Kreis context add:', error));
+        }
         if (message.type === 'activate' && typeof message.url === 'string') {
           void activateTab(message.url, ['exact', 'site'].includes(message.match) ? message.match : 'prefix')
             .catch(error => setStatus('Activation failed: ' + String(error)));
@@ -180,6 +225,7 @@ async function connect() {
       if (socket !== ws) return;
       socket = null;
       isConnecting = false;
+      authenticated = false;
       if (heartbeat) clearInterval(heartbeat);
       heartbeat = null;
       setStatus('Disconnected');
@@ -193,7 +239,7 @@ async function connect() {
   }
 }
 
-chrome.runtime.onInstalled.addListener(() => { void connect(); });
+chrome.runtime.onInstalled.addListener(() => { installContextMenus(); void connect(); });
 chrome.runtime.onStartup.addListener(() => { void connect(); });
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && ('pairingToken' in changes || 'profile' in changes)) {

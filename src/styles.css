@@ -284,3 +284,18 @@ input::placeholder { color: #687692; }
 @media (prefers-reduced-motion: reduce) {
   .wheel-segment.is-drop-target .wheel-segment-tint { transition: none; }
 }
+
+/* Compact destination picker shown after Explorer or Vivaldi's Add to Kreis. */
+.quick-add-shell { width: 600px; height: 600px; padding: 38px; border-radius: 22px;
+  background: radial-gradient(circle at 90% 0, #2b3956, #121a2a 57%);
+  border: 1px solid #4a5a76; box-shadow: 0 20px 70px #000a;
+  display: flex; flex-direction: column; gap: 20px; }
+.quick-add-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.quick-add-heading h1 { font-size: 24px; line-height: 1.2; margin: 0; color: #f3f6ff; }
+.quick-add-target { margin: -5px 0 0; background: #121a2bcc; padding: 12px 14px;
+  border-radius: 9px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font-size: 11px; color: #b7c7dc; }
+.quick-add-shell label { display: flex; flex-direction: column; gap: 8px; color: #d2daed; font-size: 13px; }
+.quick-add-shell label input { flex: none; }
+.quick-add-shell .helper { margin: 0; }
+.quick-add-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: auto; }
