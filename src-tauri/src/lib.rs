@@ -57,6 +57,14 @@ fn connected_profiles(bridge: tauri::State<'_, Arc<Bridge>>) -> Vec<String> {
     bridge.connected()
 }
 
+#[tauri::command]
+fn set_browser_profiles(
+    bridge: tauri::State<'_, Arc<Bridge>>,
+    profiles: Vec<bridge::BrowserProfile>
+) -> Result<(), String> {
+    bridge.set_profiles(profiles)
+}
+
 /// The folder is validated before hiding the Kreis wheel, then automation
 /// runs on a blocking worker so window focus and Ctrl+T delays don't freeze React.
 #[tauri::command]
@@ -95,23 +103,32 @@ fn focus_application_window(executable: String, window_id: String) -> Result<(),
     native_windows::focus_application_window(&executable, &window_id)
 }
 
-fn validate_browser(url: &str, profile: &str, mode: &str) -> Result<(), String> {
+fn validate_browser(bridge: &Bridge, url: &str, profile: &str, mode: &str) -> Result<(), String> {
     let parsed = url::Url::parse(url).map_err(|_| "Invalid website URL")?;
     if !matches!(parsed.scheme(), "http" | "https") {
         return Err("Only HTTP and HTTPS links are allowed".into());
     }
-    if !["Work", "Personal"].contains(&profile) { return Err("Unknown browser profile".into()); }
+    if bridge.profile(profile).is_none() { return Err("Unknown or unassigned browser profile. Choose a connected profile in Kreis Settings.".into()); }
     if !["exact", "prefix", "site"].contains(&mode) { return Err("Unknown matching mode".into()); }
     Ok(())
 }
 
 #[tauri::command]
 fn activate_browser(bridge: tauri::State<'_, Arc<Bridge>>, url: String, profile: String, match_mode: String) -> Result<bool, String> {
-    validate_browser(&url, &profile, &match_mode)?;
+    validate_browser(&bridge, &url, &profile, &match_mode)?;
     if bridge.send(&profile, &url, &match_mode) { return Ok(true); }
-    // If the extension is not connected, the fallback is the DEFAULT browser/profile.
-    webbrowser::open(&url).map_err(|e| format!("Could not open {url}: {e}"))?;
-    Ok(false)
+    // Preserve pre-0.12 Vivaldi behavior without silently opening new
+    // browser-specific shortcuts in the wrong browser/profile.
+    if profile == "Work" || profile == "Personal" {
+        if profile == "Work" || profile == "Personal" {
+        webbrowser::open(&url).map_err(|e| format!("Could not open {url}: {e}"))
+    } else {
+        Err(format!("Browser profile {profile} is disconnected. Pair its extension."))
+    }?;
+        Ok(false)
+    } else {
+        Err(format!("Browser profile {profile} is disconnected. Pair its browser extension in Kreis Settings."))
+    }
 }
 
 /// None means no compatible extension response; the frontend keeps legacy behavior.
@@ -122,13 +139,13 @@ async fn query_browser_tabs(
     profile: String,
     match_mode: String
 ) -> Result<Option<Vec<bridge::BrowserTab>>, String> {
-    validate_browser(&url, &profile, &match_mode)?;
+    validate_browser(&bridge, &url, &profile, &match_mode)?;
     Ok(bridge.matching_tabs(&profile, &url, &match_mode).await)
 }
 
 #[tauri::command]
 fn focus_browser_tab(bridge: tauri::State<'_, Arc<Bridge>>, profile: String, tab_id: i32) -> Result<(), String> {
-    if !["Work", "Personal"].contains(&profile.as_str()) { return Err("Unknown browser profile".into()); }
+    if bridge.profile(&profile).is_none() { return Err("Unknown browser profile".into()); }
     if tab_id < 0 { return Err("Invalid tab ID".into()); }
     if bridge.command(&profile, serde_json::json!({"type":"focus-tab","tabId": tab_id})) {
         Ok(())
@@ -139,7 +156,7 @@ fn focus_browser_tab(bridge: tauri::State<'_, Arc<Bridge>>, profile: String, tab
 
 #[tauri::command]
 fn open_browser_tab(bridge: tauri::State<'_, Arc<Bridge>>, url: String, profile: String) -> Result<(), String> {
-    validate_browser(&url, &profile, "prefix")?;
+    validate_browser(&bridge, &url, &profile, "prefix")?;
     if bridge.command(&profile, serde_json::json!({"type":"open-new","url":url})) {
         return Ok(());
     }
@@ -195,7 +212,7 @@ pub fn run() {
     builder
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![pairing_key, connected_profiles, open_folder, focus_application, list_application_windows, focus_application_window, activate_browser, query_browser_tabs, focus_browser_tab, open_browser_tab, toggle_at_cursor, hide_wheel, hub_drag::start_hub_drag, take_startup_context, set_windows_context_menu, windows_context_menu_enabled])
+        .invoke_handler(tauri::generate_handler![pairing_key, connected_profiles, set_browser_profiles, open_folder, focus_application, list_application_windows, focus_application_window, activate_browser, query_browser_tabs, focus_browser_tab, open_browser_tab, toggle_at_cursor, hide_wheel, hub_drag::start_hub_drag, take_startup_context, set_windows_context_menu, windows_context_menu_enabled])
         .setup(|app| {
             #[cfg(windows)]
             app.manage(StartupContext(Mutex::new(context_menu::from_args(&std::env::args().collect::<Vec<_>>()))));

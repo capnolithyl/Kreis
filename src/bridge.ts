@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Entry, Profile } from './types';
+import type { Entry, BrowserProfile } from './types';
 
 export type BrowserTab = { id: number; windowId: number; title: string };
 export type AppWindow = { id: string; title: string };
@@ -19,23 +19,26 @@ export async function launch(entry: Entry): Promise<OpenResult> {
     return { openedIn: 'desktop-app' };
   }
   const connected = await invoke<boolean>('activate_browser', {
-    url: entry.target, profile: entry.profile, matchMode: entry.match
+    url: entry.target, profile: entry.profileId ?? entry.profile, matchMode: entry.match
   });
   return connected
     ? { openedIn: 'browser-extension' }
-    : { openedIn: 'default-browser', details: `The ${entry.profile} Vivaldi extension is not connected. Opened with your system default browser.` };
+    : { openedIn: 'default-browser', details: `The legacy ${entry.profile} Vivaldi extension is disconnected. Opened with your system default browser.` };
 }
 
 /** Null indicates an old or disconnected extension. The caller can use the legacy action. */
 export const getMatchingTabs = (entry: Entry) => invoke<BrowserTab[] | null>('query_browser_tabs', {
-  url: entry.target, profile: entry.profile, matchMode: entry.match
+  url: entry.target, profile: entry.profileId ?? entry.profile, matchMode: entry.match
 });
-export const focusBrowserTab = (profile: Profile, tabId: number) =>
-  invoke<void>('focus_browser_tab', { profile, tabId });
+export const focusBrowserTab = (profileId: string, tabId: number) =>
+  invoke<void>('focus_browser_tab', { profile: profileId, tabId });
 export const openNewBrowserTab = (entry: Entry) =>
-  invoke<void>('open_browser_tab', { url: entry.target, profile: entry.profile });
+  invoke<void>('open_browser_tab', { url: entry.target, profile: entry.profileId ?? entry.profile });
 
+/** IDs of connected configured browser profiles, not display names. */
 export const getProfiles = () => invoke<string[]>('connected_profiles');
+export const setBrowserProfiles = (profiles: BrowserProfile[]) =>
+  invoke<void>('set_browser_profiles', { profiles });
 export const getPairingKey = () => invoke<string>('pairing_key');
 /** Rust follows the OS pointer in physical pixels while the mouse is down. */
 export const startHubDrag = () => invoke<void>('start_hub_drag');
@@ -46,7 +49,7 @@ export type ContextAdd = {
   kind: 'browser' | 'folder' | 'app';
   target: string;
   title: string;
-  profile?: Profile | null;
+  profile?: string | null;
 };
 
 /** An Explorer context command may launch Kreis when it is not running yet. */

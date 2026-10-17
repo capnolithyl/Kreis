@@ -1,7 +1,11 @@
 import { createStarterEntries } from './starterSettings.mjs';
+import { defaultBrowserProfiles } from './browserProfiles.mjs';
 
 export type TargetType = 'browser' | 'app' | 'folder' | 'group';
-export type Profile = 'Work' | 'Personal';
+/** Legacy bridge label retained for older saved shortcuts and v0.3 companions. */
+export type Profile = string;
+export type BrowserId = 'vivaldi' | 'chrome' | 'edge' | 'brave' | 'opera';
+export type BrowserProfile = { id: string; name: string; browserId: BrowserId };
 export type MatchMode = 'exact' | 'prefix' | 'site';
 export type Entry = {
   id: string;
@@ -9,6 +13,9 @@ export type Entry = {
   type: TargetType;
   target: string;
   profile: Profile;
+  /** Stable routed identity. Empty string means deliberately unassigned. */
+  profileId?: string;
+  browserId?: BrowserId;
   match: MatchMode;
   icon: string;
   color: string;
@@ -54,12 +61,13 @@ export function wheelFontStack(font: WheelFont): string {
   return '"' + font + '", "Segoe UI", system-ui, sans-serif';
 }
 
-export type Settings = { shortcut: string; entries: Entry[]; appearance: WheelAppearance };
+export type Settings = { shortcut: string; entries: Entry[]; appearance: WheelAppearance; browserProfiles: BrowserProfile[] };
 
 export const DEFAULT_SETTINGS: Settings = {
   shortcut: 'Control+Space',
   appearance: DEFAULT_APPEARANCE,
-  entries: createStarterEntries()
+  entries: createStarterEntries(),
+  browserProfiles: defaultBrowserProfiles()
 };
 
 export function validateEntry(entry: Entry): string | null {

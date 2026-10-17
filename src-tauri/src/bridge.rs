@@ -1,13 +1,35 @@
 //! Loopback-only, paired WebSocket bridge to the Vivaldi extension.
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
-use std::{collections::HashMap, sync::{Arc, Mutex}, time::Duration};
+use std::{collections::{HashMap, HashSet}, sync::{Arc, Mutex}, time::Duration};
 use tauri::Manager;
 use tokio::sync::{mpsc::{unbounded_channel, UnboundedSender}, oneshot};
 use tokio::time::timeout;
 use tokio_tungstenite::{accept_hdr_async, tungstenite::{handshake::server::ErrorResponse, http::StatusCode, Message}};
 
 pub const BRIDGE_PORT: u16 = 43991;
+const BROWSERS: &[&str] = &["vivaldi", "chrome", "edge", "brave", "opera"];
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserProfile {
+    pub id: String,
+    pub name: String,
+    pub browser_id: String,
+}
+
+fn legacy_profiles() -> Vec<BrowserProfile> {
+    ["Work", "Personal"].iter().map(|name| BrowserProfile {
+        id: name.to_string(), name: name.to_string(), browser_id: "vivaldi".into()
+    }).collect()
+}
+
+fn valid_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 72 && id.bytes().all(|b|
+        b.is_ascii_alphanumeric() || b == b'-' || b == b'_'
+    )
+}
+
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -25,6 +47,7 @@ struct PendingLookup {
 pub struct Bridge {
     pub token: String,
     pub clients: Mutex<HashMap<String, UnboundedSender<String>>>,
+    configured: Mutex<Vec<BrowserProfile>>,
     pending: Mutex<HashMap<String, PendingLookup>>,
 }
 
@@ -33,11 +56,41 @@ impl Bridge {
         Self {
             token,
             clients: Mutex::new(HashMap::new()),
+            configured: Mutex::new(legacy_profiles()),
             pending: Mutex::new(HashMap::new()),
         }
     }
 
+    pub fn profiles(&self) -> Vec<BrowserProfile> {
+        self.configured.lock().expect("profile lock").clone()
+    }
+
+    pub fn profile(&self, id: &str) -> Option<BrowserProfile> {
+        self.configured.lock().ok()?.iter().find(|p| p.id == id).cloned()
+    }
+
+    pub fn set_profiles(&self, profiles: Vec<BrowserProfile>) -> Result<(), String> {
+        if profiles.len() > 64 { return Err("Up to 64 browser profiles are supported.".into()); }
+        let mut ids = HashSet::new();
+        let mut names = HashSet::new();
+        for p in &profiles {
+            let name = p.name.trim();
+            if !valid_id(&p.id) || name.is_empty() || name.len() > 48 ||
+                !BROWSERS.contains(&p.browser_id.as_str()) ||
+                !ids.insert(p.id.clone()) ||
+                !names.insert((p.browser_id.clone(), name.to_lowercase())) {
+                return Err("Invalid or repeated browser/profile configuration.".into());
+            }
+        }
+        let mut configured = self.configured.lock().map_err(|e| e.to_string())?;
+        *configured = profiles;
+        let ids = &ids;
+        self.clients.lock().map_err(|e| e.to_string())?.retain(|id, _| ids.contains(id));
+        Ok(())
+    }
+
     pub fn command(&self, profile: &str, message: Value) -> bool {
+        if self.profile(profile).is_none() { return false; }
         self.clients.lock().expect("bridge client lock")
             .get(profile)
             .is_some_and(|sender| sender.send(message.to_string()).is_ok())
@@ -145,19 +198,47 @@ async fn serve_client(stream: tokio::net::TcpStream, bridge: Arc<Bridge>, app: t
                 match input {
                     Some(Ok(Message::Text(text))) => {
                         let value: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+                        // Deleting a browser profile immediately revokes its
+                        // existing socket, not just future tab-routing commands.
+                        if profile.as_ref().is_some_and(|id| bridge.profile(id).is_none()) {
+                            break;
+                        }
                         if profile.is_none() {
                             if value.get("type").and_then(Value::as_str) != Some("hello") ||
                                 value.get("token").and_then(Value::as_str) != Some(bridge.token.as_str()) {
                                 break;
                             }
-                            let name = match value.get("profile").and_then(Value::as_str) {
-                                Some("Personal") => "Personal",
-                                Some("Work") => "Work",
+                            // Setup popup can securely discover available profiles using
+                            // only the pairing key. This session never controls tabs.
+                            if value.get("request").and_then(Value::as_str) == Some("profiles") {
+                                let result = json!({"type":"profile-list","profiles":bridge.profiles()});
+                                let _ = outgoing.send(Message::Text(result.to_string().into())).await;
+                                break;
+                            }
+                            // Older v0.3 Vivaldi extensions send "profile": "Work"
+                            // or "Personal". Keep both identifiers routable.
+                            let legacy = value.get("profile").and_then(Value::as_str);
+                            let id = match value.get("profileId").and_then(Value::as_str).or(legacy) {
+                                Some(id) if valid_id(id) => id,
                                 _ => break,
                             };
-                            let label = name.to_string();
-                            bridge.clients.lock().map_err(|e| e.to_string())?.insert(label.clone(), tx.clone());
-                            profile = Some(label);
+                            let Some(registered) = bridge.profile(id) else { break; };
+                            if let Some(browser) = value.get("browserId").and_then(Value::as_str) {
+                                if browser != registered.browser_id { break; }
+                            } else if registered.browser_id != "vivaldi" ||
+                                !matches!(legacy, Some("Work" | "Personal")) {
+                                break;
+                            }
+                            let mut clients = bridge.clients.lock().map_err(|e| e.to_string())?;
+                            if clients.get(id).is_some_and(|existing| !existing.is_closed()) {
+                                let _ = tx.send(json!({"type":"error","reason":"This profile is already connected in another browser window or extension."}).to_string());
+                                // Allow the error message to flush before disconnect.
+                                drop(clients);
+                                break;
+                            }
+                            clients.insert(id.to_owned(), tx.clone());
+                            drop(clients);
+                            profile = Some(id.to_owned());
                             let _ = tx.send(json!({"type":"ready"}).to_string());
                         } else if value.get("type").and_then(Value::as_str) == Some("ping") {
                             let _ = tx.send(json!({"type":"pong"}).to_string());

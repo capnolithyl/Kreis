@@ -2,14 +2,14 @@
 
 **Kreis** is a keyboard-accessible radial launcher for Windows. Open it at the mouse cursor, select an application, folder, or browser tab, and get back to what you were doing.
 
-Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeScript. Browser-tab integration currently uses an optional unpacked Chromium extension configured for **Vivaldi**.
+Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeScript. Browser-tab integration uses an optional unpacked Chromium extension. Kreis 0.12 supports configurable browser profiles for Vivaldi, Chrome, Edge, Brave, and Opera (the same Chromium extension APIs; test each browser on your PC).
 
-> **Status:** Active development. The documentation below describes Kreis **0.11.2**. Planned changes are tracked in the [roadmap](ROADMAP.md).
+> **Status:** Active development. The documentation below describes Kreis **0.12.0**. Planned changes are tracked in the [roadmap](ROADMAP.md).
 
 ## Features
 
 - **Quick access:** Press `Ctrl+Space` to show a cursor-centered Kreis. If that hotkey is unavailable, Kreis tries `Ctrl+Alt+Space`. Change it under Settings → Hotkey.
-- **Shortcuts:** Launch or focus running Windows applications, open folders in File Explorer, and open or focus matching Vivaldi browser tabs.
+- **Shortcuts:** Launch or focus running Windows applications, open folders in File Explorer, and open or focus matching tabs in paired Chromium browser profiles.
 - **Groups:** Create nested groups to organize shortcuts into child Kreise. New Kreise support **up to 10 direct slices**; existing 11/12-slice layouts are preserved.
 - **Choose the right window or tab:** If multiple application windows or browser tabs match, Kreis can display a selection Kreis. Browser matches can be narrowed by URL and an optional tab-title filter; app matches can use a window-title filter.
 - **Move or rearrange:** Drag the **hub** to reposition the whole Kreis on-screen, or drag individual slices to reorder and group them. The center of a child Kreis also acts as a drop target to move a slice up one level. Changes can be undone.
@@ -18,6 +18,7 @@ Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeS
 - **Appearance:** Choose slice icons and colors, and adjust font and label sizes.
 - **Optional context menus:** Add shortcuts from File Explorer folders, `.exe` files and `.lnk` shortcuts, or from webpage and link context menus in the companion browser extension.
 - **Generic first run:** Starts with familiar websites, Downloads, and a sample nested Tools group. Your saved configuration remains untouched by updates.
+- **Browser profiles:** Add, rename and remove browser profiles, with stable IDs and explicit browser selection for each shortcut. Deletion offers reassignment or leaves shortcuts unassigned.
 - **Local configuration:** Settings and shortcuts are saved locally; no Kreis account is required.
 
 ## Terminology
@@ -69,27 +70,29 @@ To nest a group, set its **Parent group** (or the shortcut's **Placement**). The
 
 Starter shortcuts are saved on first run only; your saved layout is not overwritten by future upgrades.
 
-## Browser companion (Vivaldi)
+## Browser companion (Chromium)
 
-To focus existing browser tabs rather than just opening URLs:
+To focus existing browser tabs in specific browser profiles:
 
-1. Start Kreis and find the **pairing key** under **Settings → Connection**.
-2. In Vivaldi, open `vivaldi://extensions`, enable **Developer mode**, choose **Load unpacked**, and select this repository's `extension/` directory.
-3. Open the Kreis extension popup, select **Work** or **Personal**, paste the pairing key, and choose **Save & connect**.
-4. Repeat in the other Vivaldi profile if needed, using the same key but selecting its respective profile name.
-5. Use **Refresh** in Kreis's Connection settings to check the connection.
+1. In Kreis, open **Settings → Connection** and add a profile for each browser/profile combination (for example, Vivaldi · Work and Chrome · Personal). Existing Work and Personal Vivaldi profiles are kept during an upgrade.
+2. In that browser profile, open its extension page (for example `chrome://extensions`, `edge://extensions`, or `vivaldi://extensions`). Enable **Developer mode**, then **Load unpacked** and select the repository's `extension/` folder. Install the companion separately for each Chromium user profile.
+3. Open the Kreis companion popup. Paste the **pairing key** from the desktop app, click **Load profiles from Kreis**, and choose the matching browser and profile.
+4. Click **Save & connect**. Return to Kreis Connection settings and choose **Refresh connections** to see the status.
+5. Edit website shortcuts under **Settings → Shortcuts & Groups** to select the correct browser/profile. The companion focuses existing matching tabs, or creates a new tab in that specific connected browser.
+
+The new companion is **v0.4.0**. Update/reload your unpacked extension to choose custom profiles. The previous v0.3 Vivaldi companion can still connect as Work/Personal to Kreis 0.12, so those shortcuts do not need an immediate extension migration.
 
 The companion connects to a token-authenticated WebSocket at `127.0.0.1:43991`. It uses the `tabs` permission to discover tab URLs and titles and does not read page contents. Keep your pairing key private.
 
-Currently, Kreis supports **Vivaldi** and two fixed connection labels (**Work** and **Personal**). Other Chromium browsers and user-managed profiles are on the [roadmap](ROADMAP.md). If the companion is disconnected, an unfiltered browser shortcut falls back to opening its URL in the system default browser; that fallback cannot guarantee which browser profile is used.
+Profiles have stable internal IDs independent of their names and browser brands. Chrome · Work and Vivaldi · Work are two distinct connections. If a **new custom profile** is disconnected, Kreis shows an error rather than opening the wrong browser or profile. Existing legacy Vivaldi Work/Personal shortcuts retain the old default-browser fallback when unfiltered. Removing a profile never deletes its shortcuts; choose a replacement or leave them unassigned. Browser compatibility relies on Chromium extension APIs, and Opera or browser-specific restrictions may require verification on your machine.
 
-The extension popup includes **Tab matching diagnostics** for troubleshooting. After changing extension files, reload the unpacked extension from `vivaldi://extensions`.
+The extension popup includes **Tab matching diagnostics** for troubleshooting. After changing extension files, reload the unpacked extension on your browser's extensions page.
 
 ## Add to Kreis from outside the app
 
 **File Explorer:** Open **Settings → Integrations** to enable or disable per-user **Add to Kreis** context-menu commands for folders, `.exe` files, and `.lnk` shortcuts. On Windows 11, these commands may appear under **Show more options**. No administrator privileges are required for this opt-in integration.
 
-**Vivaldi:** With the companion extension installed, right-click a link or page and choose **Add link to Kreis** or **Add page to Kreis**. A confirmation picker lets you change the shortcut label and select its destination. The browser action requires a paired connection to Kreis.
+**Chromium browser:** With the companion extension installed and paired, right-click a link or page and choose **Add link to Kreis** or **Add page to Kreis**. A confirmation picker lets you change the shortcut label and select its destination. The browser action requires a paired connection to Kreis.
 
 ## Development
 
@@ -115,11 +118,11 @@ A matching hash confirms that the extracted installer agrees with its checksum m
 ## Current limitations
 
 - Windows only; new layouts permit **10** direct slices per configured Kreis. Older 11/12-slice layouts remain intact, and their extra slices remain clickable.
-- Vivaldi is the only tested browser integration, with fixed Work/Personal profile labels.
+- Browser pairing supports configurable Chromium profiles. Vivaldi was the original tested integration; verify Chrome, Edge, Brave and Opera in their respective extension managers.
 - Native application focusing and File Explorer tab reuse depend on Windows behavior and may fall back to opening a new instance or tab when a safe existing match cannot be identified.
 - A `.lnk` shortcut opens through Windows Shell and may not identify an already-running application for focus.
 - File Explorer context-menu integration is opt-in and does not extend to every Start menu or taskbar right-click menu.
-- Customizable browser profiles are not implemented yet.
+- Auto-discovery of installed browser profiles and a fully automated extension-store installation are not yet implemented.
 
 ## Roadmap
 
@@ -128,7 +131,7 @@ The next milestones are **plans**, not released features.
 | Target | Planned improvements |
 | --- | --- |
 | **0.11.0 · Launcher usability** | Numbered Quick Keys using **1–9 and 0** and the safe 10-slice limit are shipped. Generic starter shortcuts shipped in **0.11.2**. Hub dragging shipped in **0.10.2** and was stabilized in **0.10.3**. |
-| **0.12.0 · Browser and profile management** | Support additional Chromium-based browsers; add, rename, and remove profiles; separate browser identity from profile identity; assign shortcuts to individual browser/profile combinations; handle deletion without breaking shortcuts. |
+| **0.12.0 · Browser and profile management** | Browser/profile registry and safe profile management shipped. Paired Chrome, Edge, Brave, Opera and Vivaldi profiles use the new Chromium extension; manual cross-browser testing is still recommended. Auto-discovery remains future work. |
 | **Later / under consideration** | Browser/profile auto-detection, improved keyboard accessibility, gesture navigation, and easier distribution/update options. |
 
 See the [detailed roadmap](ROADMAP.md) for scope, compatibility rules, and proposed acceptance criteria.

@@ -4,10 +4,12 @@ import { listen } from '@tauri-apps/api/event';
 import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { load, type Store } from '@tauri-apps/plugin-store';
 import { ArrowLeft, Check, ChevronDown, CircleHelp, Copy, Minus, Plus, RotateCcw, Save, Settings2, Trash2, X } from 'lucide-react';
-import { focusAppWindow, focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, hideWheel, launch, startHubDrag, listAppWindows, openFolder, openNewBrowserTab, toggleWheel, type AppWindow, type BrowserTab, type ContextAdd, takeStartupContext, windowsContextMenuEnabled, setWindowsContextMenu } from './bridge';
+import { focusAppWindow, focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, setBrowserProfiles, hideWheel, launch, startHubDrag, listAppWindows, openFolder, openNewBrowserTab, toggleWheel, type AppWindow, type BrowserTab, type ContextAdd, takeStartupContext, windowsContextMenuEnabled, setWindowsContextMenu } from './bridge';
 import { icons } from './icons';
 import { createStarterEntries, selectInitialSettings } from './starterSettings.mjs';
-import { DEFAULT_APPEARANCE, DEFAULT_SETTINGS, WHEEL_FONTS, normalizeAppearance, wheelFontStack, type Entry, type Settings, type WheelAppearance, type WheelFont, validateEntry } from './types';
+import { addBrowserProfile, assignProfile, BROWSER_OPTIONS, deleteBrowserProfile, normalizeBrowserSettings, profileForEntry, renameBrowserProfile } from './browserProfiles.mjs';
+import BrowserProfilesPanel from './BrowserProfilesPanel';
+import { DEFAULT_APPEARANCE, DEFAULT_SETTINGS, WHEEL_FONTS, normalizeAppearance, wheelFontStack, type BrowserId, type Entry, type Settings, type WheelAppearance, type WheelFont, validateEntry } from './types';
 import RadialWheel, { type WheelContextAction, type WheelOption } from './RadialWheel';
 import WheelItemDialog, { type WheelEditMode } from './WheelItemDialog';
 import { editWheelEntry, duplicateWheelEntry, deleteWheelEntry } from './wheelContextActions.mjs';
@@ -36,7 +38,7 @@ const settingsSizes: Record<SettingsCategory, LogicalSize> = {
   hotkey: new LogicalSize(740, 390),
   typography: new LogicalSize(790, 485),
   shortcuts: new LogicalSize(900, 710),
-  connection: new LogicalSize(770, 465),
+  connection: new LogicalSize(850, 700),
   integrations: new LogicalSize(770, 455)
 };
 const window = getCurrentWindow();
@@ -69,7 +71,7 @@ export default function App() {
   const [contextAdd, setContextAdd] = useState<ContextAdd | null>(null);
   const [contextLabel, setContextLabel] = useState('');
   const [contextGroupId, setContextGroupId] = useState('');
-  const [contextProfile, setContextProfile] = useState<'Work' | 'Personal'>('Work');
+  const [contextProfile, setContextProfile] = useState<string>('Work');
   const [contextMenuEnabled, setContextMenuEnabled] = useState(false);
   const latestSettings = useRef(settings);
   latestSettings.current = settings;
@@ -79,7 +81,9 @@ export default function App() {
     setContextAdd(entry);
     setContextLabel(entry.title.slice(0, 30) || 'New shortcut');
     setContextGroupId(suggestParent(latestSettings.current.entries, MAX_ITEMS_PER_WHEEL) || '');
-    setContextProfile(entry.profile === 'Personal' ? 'Personal' : 'Work');
+    const configured = latestSettings.current.browserProfiles;
+    setContextProfile(configured.some(profile => profile.id === entry.profile)
+      ? entry.profile! : (configured[0]?.id || ''));
     setError('');
     setNotice('');
     setScreen('context');
@@ -133,15 +137,17 @@ export default function App() {
       try {
         const loaded = await load('kreis.json', { autoSave: false });
         const saved = await loaded.get<Settings>('settings');
-        const { settings: next, isFirstRun } = selectInitialSettings(saved, DEFAULT_SETTINGS, normalizeAppearance);
+        const { settings: initial, isFirstRun } = selectInitialSettings(saved, DEFAULT_SETTINGS, normalizeAppearance);
+        const next = normalizeBrowserSettings(initial);
         if (disposed) return;
         store.current = loaded;
         // Persist first-run data immediately so later updates never replace an
         // untouched starter layout. An explicit saved empty array stays empty.
-        if (isFirstRun) {
+        if (isFirstRun || JSON.stringify(next) !== JSON.stringify(initial)) {
           await loaded.set('settings', next);
           await loaded.save();
         }
+        await setBrowserProfiles(next.browserProfiles);
         latestSettings.current = next;
         setSettings(next);
         setAppearanceDraft(next.appearance);
@@ -196,6 +202,10 @@ export default function App() {
       type: contextAdd.kind,
       target: contextAdd.target,
       profile: contextProfile,
+      ...(contextAdd.kind === 'browser' ? {
+        profileId: contextProfile,
+        browserId: settings.browserProfiles.find(profile => profile.id === contextProfile)?.browserId
+      } : {}),
       match: contextAdd.kind === 'browser' ? 'exact' : 'prefix',
       icon: contextAdd.kind === 'folder' ? 'folder' : contextAdd.kind === 'app' ? 'rocket' : 'globe',
       color: contextAdd.kind === 'folder' ? '#c1a062' : contextAdd.kind === 'app' ? '#438ba8' : '#6385d7',
@@ -227,9 +237,42 @@ export default function App() {
 
   async function persist(next: Settings) {
     if (!store.current) throw new Error('Settings storage is not ready.');
+    await setBrowserProfiles(next.browserProfiles);
     await store.current.set('settings', next);
     await store.current.save();
     setSettings(next);
+  }
+
+  async function createBrowserProfile(name: string, browserId: BrowserId) {
+    const result = addBrowserProfile(settings.browserProfiles, name, browserId, crypto.randomUUID());
+    if (result.error || !result.profiles) { setError(result.error || 'Could not add profile.'); return; }
+    try {
+      await persist({ ...settings, browserProfiles: result.profiles });
+      setError('');
+      setNotice('Browser profile added. Pair its extension using the key below.');
+    } catch (cause) { setError(String(cause)); }
+  }
+
+  async function changeBrowserProfileName(profileId: string, name: string) {
+    const result = renameBrowserProfile(settings.browserProfiles, profileId, name);
+    if (result.error || !result.profiles) { setError(result.error || 'Could not rename profile.'); return; }
+    try {
+      await persist({ ...settings, browserProfiles: result.profiles });
+      setError('');
+      setNotice('Profile renamed. Shortcut assignments have not changed.');
+    } catch (cause) { setError(String(cause)); }
+  }
+
+  async function removeBrowserProfile(profileId: string, replacementId: string) {
+    const result = deleteBrowserProfile(settings, profileId, replacementId);
+    if (result.error || !result.settings) { setError(result.error || 'Could not remove profile.'); return; }
+    try {
+      await persist(result.settings);
+      setProfiles(await getProfiles());
+      setError('');
+      setNotice(replacementId ? 'Profile removed and shortcuts reassigned.' :
+        'Profile removed. Its shortcuts remain saved but need another profile.');
+    } catch (cause) { setError(String(cause)); }
   }
 
   useEffect(() => {
@@ -339,24 +382,28 @@ export default function App() {
     const generation = selectionGeneration.current;
     try {
       if (entry.type === 'browser') {
+        const configuredProfile = profileForEntry(entry, settings.browserProfiles);
+        if (!configuredProfile) {
+          throw new Error(`The shortcut "${entry.title}" has no assigned browser profile. Edit it in Settings → Shortcuts & Groups.`);
+        }
         const matchingUrlTabs = await getMatchingTabs(entry);
         if (generation !== selectionGeneration.current) return;
         const titleContains = entry.windowTitle?.trim() || '';
         // Never fall back to an unfiltered activation when the title filter
         // requires the extension. That could switch to an unrelated chat.
         if (titleContains && matchingUrlTabs === null) {
-          throw new Error(`The ${entry.profile} browser extension did not respond. Tab title filtering requires a connected Vivaldi profile.`);
+          throw new Error(`The ${configuredProfile.browserId} · ${configuredProfile.name} extension did not respond. Title filtering requires the paired browser profile.`);
         }
         const tabs = matchingUrlTabs ? filterByTitle(matchingUrlTabs, titleContains) : null;
         if (titleContains && tabs?.length === 0) {
-          throw new Error(`No open ${entry.profile} tab matching ${entry.title} has "${titleContains}" in its title.`);
+          throw new Error(`No open ${configuredProfile.name} tab matching ${entry.title} has "${titleContains}" in its title.`);
         }
         if (tabs && tabs.length > 1) {
           pushLevel({ kind: 'tabs', entry, tabs });
           return;
         }
         if (tabs && tabs.length === 1) {
-          await focusBrowserTab(entry.profile, tabs[0].id);
+          await focusBrowserTab(entry.profileId ?? entry.profile, tabs[0].id);
         } else {
           // For unfiltered links, retain the existing new-tab/default-browser fallback.
           const result = await launch(entry);
@@ -404,7 +451,7 @@ export default function App() {
     setError('');
     const generation = selectionGeneration.current;
     try {
-      await focusBrowserTab(entry.profile, tab.id);
+      await focusBrowserTab(entry.profileId ?? entry.profile, tab.id);
       if (generation === selectionGeneration.current) await closeLauncher();
     } catch (cause) {
       if (generation === selectionGeneration.current) setError(String(cause));
@@ -483,6 +530,9 @@ export default function App() {
     if (!draft) return;
     const problem = validateEntry(draft);
     if (problem) return setError(problem);
+    if (draft.type === 'browser' && !profileForEntry(draft, settings.browserProfiles)) {
+      return setError('Select a configured browser profile. You can add one under Settings → Connection.');
+    }
     const entry: Entry = {
       ...draft,
       id: draft.id || crypto.randomUUID(),
@@ -723,7 +773,7 @@ export default function App() {
             key: entry.id, title: entry.title, color: entry.color, icon: entry.icon,
             isGroup: entry.type === 'group',
             tooltip: entry.type === 'group' ? `Open ${entry.title} group`
-              : `${entry.title} (${entry.type === 'browser' ? entry.profile : entry.type === 'folder' ? 'File Explorer' : 'Windows'})`,
+              : `${entry.title} (${entry.type === 'browser' ? (profileForEntry(entry, settings.browserProfiles)?.name || 'Unassigned profile') : entry.type === 'folder' ? 'File Explorer' : 'Windows'})`,
             onSelect: () => void selectEntry(entry)
           }));
 
@@ -760,17 +810,19 @@ export default function App() {
               ))}
             </select>
           </label>
-          {contextAdd.kind === 'browser' && <label>Vivaldi profile
-            <select value={contextProfile} onChange={event => setContextProfile(event.target.value as 'Work' | 'Personal')}>
-              <option value="Work">Work</option>
-              <option value="Personal">Personal</option>
+          {contextAdd.kind === 'browser' && <label>Browser profile
+            <select value={contextProfile} onChange={event => setContextProfile(event.target.value)}>
+              {!settings.browserProfiles.some(p => p.id === contextProfile) && <option value="">Choose a profile</option>}
+              {settings.browserProfiles.map(p => <option key={p.id} value={p.id}>
+                {BROWSER_OPTIONS.find(b => b.id === p.browserId)?.name} · {p.name}
+              </option>)}
             </select>
           </label>}
           <p className="helper">Choose any nested group, or Main Kreis. Nothing is saved until you confirm.</p>
           {error && <p className="dialog-error" role="alert">{error}</p>}
           <div className="quick-add-actions">
             <button className="secondary" onClick={() => void closeLauncher()}>Cancel</button>
-            <button className="primary" disabled={busy} onClick={() => void saveContextAddition()}><Check size={16}/> Add shortcut</button>
+            <button className="primary" disabled={busy || (contextAdd.kind === 'browser' && !settings.browserProfiles.some(p => p.id === contextProfile))} onClick={() => void saveContextAddition()}><Check size={16}/> Add shortcut</button>
           </div>
         </div>
       ) : screen === 'wheel' ? (
@@ -823,7 +875,7 @@ export default function App() {
                 aria-label="Back to Settings wheel" title="Back to Settings wheel"><ArrowLeft size={20}/></button>
               <div>
                 <div className="overline">KREIS SETTINGS</div>
-                <h1>{settingsCategoryTitle(settingsSection)} <small>0.11.2</small></h1>
+                <h1>{settingsCategoryTitle(settingsSection)} <small>0.12.0</small></h1>
                 <p>{SETTINGS_CATEGORIES.find(category => category.key === settingsSection)?.description}</p>
               </div>
             </div>
@@ -877,7 +929,7 @@ export default function App() {
                     <Plus size={16}/> Add group
                   </button>
                   <button className="secondary" disabled={!canAddToAnyWheel}
-                    onClick={() => { setDraft({ ...DEFAULT_NEW, groupId: defaultNewParent }); setError(''); }}>
+                    onClick={() => { setDraft(assignProfile({ ...DEFAULT_NEW, groupId: defaultNewParent }, settings.browserProfiles[0] || null)); setError(''); }}>
                     <Plus size={16}/> Add shortcut
                   </button>
                 </div>
@@ -896,7 +948,7 @@ export default function App() {
                       <div className="entry-name">
                         <strong>{entry.title}</strong>
                         <small>{isGroup ? `Group · ${childrenFor(entry.id).length} items`
-                          : entry.type === 'app' ? 'Windows app' : entry.type === 'folder' ? 'File Explorer folder' : `Vivaldi · ${entry.profile}`}</small>
+                          : entry.type === 'app' ? 'Windows app' : entry.type === 'folder' ? 'File Explorer folder' : `${BROWSER_OPTIONS.find(b => b.id === entry.browserId)?.name || 'Browser'} · ${profileForEntry(entry,settings.browserProfiles)?.name || 'Unassigned'}`}</small>
                       </div>
                       <span className="entry-target" title={entry.target}>
                         {isGroup ? (entry.groupId ? 'Sub-Kreis' : 'Group Kreis') : entry.target}
@@ -930,9 +982,15 @@ export default function App() {
                 </button>
                 <strong className={contextMenuEnabled ? 'online' : 'offline'}>{contextMenuEnabled ? 'Enabled' : 'Disabled'}</strong>
               </div>
-              <p className="helper">Right-click any website link or page in Vivaldi for “Add link/page to Kreis.” Reload the unpacked extension after upgrading so Vivaldi grants the new contextMenus permission. Kreis must be running in the tray for the browser action to arrive.</p>
+              <p className="helper">Right-click a website or link in a paired Chromium browser for “Add link/page to Kreis.” Load extension v0.4.0 for new profiles. Kreis must be running in the tray.</p>
             </section>}
-            {settingsSection === 'connection' && <section className="setting-section"><div className="section-title"><h2>Browser connection</h2><button className="secondary" onClick={() => void getProfiles().then(setProfiles)}>Refresh</button></div><div className="profiles"><div>Work <strong className={profiles.includes('Work') ? 'online' : 'offline'}>{profiles.includes('Work') ? 'Connected' : 'Not connected'}</strong></div><div>Personal <strong className={profiles.includes('Personal') ? 'online' : 'offline'}>{profiles.includes('Personal') ? 'Connected' : 'Not connected'}</strong></div></div><label className="helper" htmlFor="pairing-key">Pairing key (paste into each Vivaldi profile's Kreis extension)</label><div className="shortcut-row"><input id="pairing-key" readOnly type="password" value={pairingKey}/><button className="secondary" onClick={() => void navigator.clipboard.writeText(pairingKey)}><Copy size={15}/> Copy</button></div><p className="helper">The extension switches to existing tabs, including tabs in different Vivaldi windows. When disconnected, Kreis opens the URL with your default browser instead.</p></section>}
+            {settingsSection === 'connection' && <BrowserProfilesPanel
+              profiles={settings.browserProfiles} connected={profiles} entries={settings.entries} pairingKey={pairingKey}
+              onRefresh={() => void getProfiles().then(setProfiles)}
+              onAdd={(name, browserId) => void createBrowserProfile(name, browserId)}
+              onRename={(id, name) => void changeBrowserProfileName(id, name)}
+              onDelete={(id, replacementId) => void removeBrowserProfile(id, replacementId)}
+            />}
             <div className="bottom-actions">
               {settingsSection === 'shortcuts' && <button className="secondary" onClick={() => void persist({...settings, entries: createStarterEntries()})}><RotateCcw size={15}/> Restore starter shortcuts</button>}
               <button className="primary" onClick={() => void backToSettingsWheel()}><ArrowLeft size={16}/> Back to settings</button>
@@ -993,10 +1051,14 @@ export default function App() {
                       )}
                       {draft.type === 'browser' && (
                         <>
-                          <label>Vivaldi profile
-                            <select value={draft.profile}
-                              onChange={event => setDraft({...draft, profile: event.target.value as Entry['profile']})}>
-                              <option>Work</option><option>Personal</option>
+                          <label>Browser and profile
+                            <select value={draft.profileId !== undefined ? draft.profileId : draft.profile}
+                              onChange={event => setDraft(assignProfile(draft, settings.browserProfiles.find(profile => profile.id === event.target.value) || null))}>
+                              <option value="">Unassigned (cannot launch until assigned)</option>
+                              {settings.browserProfiles.map(profile =>
+                                <option key={profile.id} value={profile.id}>
+                                  {BROWSER_OPTIONS.find(browser => browser.id === profile.browserId)?.name} · {profile.name}
+                                </option>)}
                             </select>
                           </label>
                           <label>Tab matching

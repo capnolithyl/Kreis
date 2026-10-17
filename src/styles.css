@@ -410,3 +410,29 @@ input::placeholder { color: #687692; }
 .wheel-inline-color-hex-label input { width: 100%; padding: 9px 11px; font-variant-numeric: tabular-nums; font-family: Consolas, monospace; }
 .wheel-inline-color-hex-label input[aria-invalid="true"] { border-color: #e3889e; }
 .wheel-inline-color-help { color: #9fb4d1; font-size: 10px; margin: 0; line-height: 1.4; }
+
+/* Browser/profile manager lives in Settings, not on the compact launcher. */
+.browser-profiles-section { max-width: 800px !important; }
+.profile-create-row { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(180px, 1.3fr) auto; align-items: end; gap: 10px; margin: 15px 0; }
+.profile-create-row label, .profile-delete-confirm label { display:flex; flex-direction:column; gap:7px; color:#c9d6ea; font-size:12px; }
+.profile-create-row input, .profile-create-row select { width:100%; }
+.browser-profile-list { display:flex; flex-direction:column; gap:7px; margin:16px 0; }
+.browser-profile-row { display:flex; align-items:center; gap:12px; padding:10px 12px; background:#1a2537; border:1px solid #3a4962; border-radius:9px; }
+.browser-profile-details { min-width:0; flex:1; display:flex; flex-direction:column; gap:4px; }
+.browser-profile-details strong { font-size:13px; overflow-wrap:anywhere; }
+.browser-profile-details small { font-size:10px; color:#97a8c4; }
+.browser-profile-rename { display:flex; gap:5px; align-items:center; }
+.browser-profile-rename input { width:180px; flex:1; }
+.browser-profile-row > .online, .browser-profile-row > .offline { font-size:11px; white-space:nowrap; }
+.profile-delete-confirm { margin:15px 0; padding:15px; border-radius:9px; background:#352231; border:1px solid #976076; display:flex; flex-direction:column; gap:9px; }
+.profile-delete-confirm strong { font-size:13px; }
+.profile-delete-confirm p { margin:0; }
+.profile-delete-actions { display:flex; justify-content:flex-end; gap:10px; }
+.profile-delete-actions .danger { background:#853b50; border:1px solid #b6687a; color:#fff; border-radius:8px; padding:9px 13px; font-weight:650; }
+.browser-connection-help { margin-top:18px; padding-top:12px; border-top:1px solid #364256; }
+.browser-connection-help code { color:#c0cff9; }
+@media(max-width:680px) {
+  .profile-create-row { grid-template-columns:1fr 1fr; }
+  .profile-create-row button { grid-column:1/-1; }
+  .browser-profile-row { flex-wrap:wrap; }
+}

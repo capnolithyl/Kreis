@@ -2,7 +2,10 @@ const profile = document.querySelector('#profile');
 const pairingToken = document.querySelector('#pairingToken');
 const status = document.querySelector('#status');
 const save = document.querySelector('#save');
+const refreshProfiles = document.querySelector('#refresh-profiles');
 const diagnostics = document.querySelector('#diagnostics');
+const browserNames = { vivaldi:'Vivaldi',chrome:'Chrome',edge:'Edge',brave:'Brave',opera:'Opera' };
+let availableProfiles = [];
 
 function formatLookup(result) {
   if (!result) return 'No Kreis tab lookup yet. Select a website in the wheel, then reopen this popup.';
@@ -28,16 +31,83 @@ async function refresh() {
   diagnostics.textContent = formatLookup(lastLookup);
 }
 
+/** Authenticated temporary connection: only reads configured profile names.
+ * No browser tabs, history, or URLs are sent during discovery.
+ */
+function discoverProfiles(token) {
+  return new Promise((resolve, reject) => {
+    if (!token) { reject(new Error('Paste the pairing key first')); return; }
+    const ws = new WebSocket('ws://127.0.0.1:43991');
+    let finished = false;
+    const done = (error, profiles) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(deadline);
+      ws.close();
+      error ? reject(error) : resolve(profiles);
+    };
+    const deadline = setTimeout(() => done(new Error('Kreis did not respond. Is it running?')), 2800);
+    ws.onopen = () => ws.send(JSON.stringify({ type:'hello', token, request:'profiles' }));
+    ws.onmessage = event => {
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type === 'profile-list' && Array.isArray(message.profiles)) done(null, message.profiles);
+      } catch { done(new Error('Invalid response from Kreis')); }
+    };
+    ws.onerror = () => done(new Error('Could not connect to Kreis on this PC'));
+    ws.onclose = () => done(new Error('Pairing key was rejected, or Kreis disconnected'));
+  });
+}
+
+async function loadProfiles() {
+  const current = profile.value;
+  refreshProfiles.disabled = true;
+  status.textContent = 'Loading profiles from Kreis...';
+  try {
+    availableProfiles = await discoverProfiles(pairingToken.value.trim());
+    profile.replaceChildren();
+    for (const item of availableProfiles) {
+      const option = new Option(`${browserNames[item.browserId] || item.browserId} · ${item.name}`, item.id);
+      profile.appendChild(option);
+    }
+    if (availableProfiles.some(p => p.id === current)) profile.value = current;
+    else {
+      const stored = await chrome.storage.local.get(['profileId', 'profile']);
+      const previous = stored.profileId || stored.profile;
+      if (availableProfiles.some(p => p.id === previous)) profile.value = previous;
+    }
+    status.textContent = availableProfiles.length ? 'Choose the browser and profile running this extension' :
+      'No profiles configured. Add one in Kreis Settings → Connection.';
+  } catch(error) { status.textContent = String(error.message || error); }
+  finally { refreshProfiles.disabled = false; }
+}
+
 (async () => {
-  const stored = await chrome.storage.local.get(['profile', 'pairingToken']);
-  profile.value = stored.profile || 'Work';
+  const stored = await chrome.storage.local.get(['profile', 'profileId', 'pairingToken', 'browserId']);
   pairingToken.value = stored.pairingToken || '';
+  if (stored.profileId || stored.profile) {
+    const option = new Option(`Saved profile: ${stored.profileId || stored.profile}`, stored.profileId || stored.profile);
+    profile.add(option);
+    profile.value = option.value;
+  }
   await refresh();
+  if (pairingToken.value) await loadProfiles();
 })();
 
+refreshProfiles.addEventListener('click', () => void loadProfiles());
 save.addEventListener('click', async () => {
   if (!pairingToken.value.trim()) { status.textContent = 'Enter a pairing key'; return; }
-  await chrome.storage.local.set({ profile: profile.value, pairingToken: pairingToken.value.trim() });
+  let selected = availableProfiles.find(p => p.id === profile.value);
+  if (!selected) {
+    // Avoid accidentally assigning an outdated or deleted profile.
+    await loadProfiles();
+    selected = availableProfiles.find(p => p.id === profile.value);
+  }
+  if (!selected) { status.textContent = 'Choose a profile from the connected Kreis app'; return; }
+  await chrome.storage.local.set({
+    profileId: selected.id, browserId: selected.browserId, pairingToken: pairingToken.value.trim(),
+    profile: selected.id === 'Personal' ? 'Personal' : 'Work'
+  });
   await chrome.runtime.sendMessage({ type: 'connect' });
   status.textContent = 'Connecting...';
   setTimeout(() => { void refresh(); }, 1200);

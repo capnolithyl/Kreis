@@ -1,4 +1,4 @@
-/* Kreis browser companion. Runs independently in each Vivaldi profile. */
+/* Kreis browser companion. Runs independently in any Chromium browser profile. */
 import { findMatchingTab, findMatchingTabs, lookupDiagnostics } from './tab-finder.js';
 import { contextMenuPayload } from './context-add.js';
 
@@ -54,7 +54,7 @@ function setStatus(value) {
 }
 
 async function allBrowserTabs() {
-  // Vivaldi has windows, workspaces, and tab stacks. Ask both APIs and de-duplicate
+  // Chromium browsers may have windows, workspaces, and tab stacks. Ask both APIs and de-duplicate
   // by tab ID rather than assuming the active window contains the desired tab.
   const tabs = await chrome.tabs.query({});
   try {
@@ -100,7 +100,7 @@ async function activateTab(url, match) {
       // Do not create duplicates while blind.
       throw new Error('The browser returned tabs without readable URLs. Check extension permissions.');
     }
-    // Genuine no-match: open a new tab in this specific Vivaldi profile.
+    // Genuine no-match: open a new tab in this connected browser profile.
     const newTab = await chrome.tabs.create({ url, active: true });
     await recordLookup({ ...details, outcome: 'Opened new tab (no matching URL)', tabId: newTab.id });
   } catch (error) {
@@ -167,9 +167,14 @@ function scheduleReconnect() {
 
 async function connect() {
   if (isConnecting || (socket && socket.readyState === WebSocket.OPEN)) return;
-  const { pairingToken, profile } = await chrome.storage.local.get(['pairingToken', 'profile']);
-  if (!pairingToken || !['Work', 'Personal'].includes(profile)) {
-    setStatus('Enter a pairing key and profile');
+  const { pairingToken, profile, profileId, browserId } =
+    await chrome.storage.local.get(['pairingToken', 'profile', 'profileId', 'browserId']);
+  // Existing 0.3 installations already store Work/Personal. Keep them paired
+  // with the same stable legacy IDs during extension upgrades.
+  const configuredId = profileId || (['Work', 'Personal'].includes(profile) ? profile : '');
+  const configuredBrowser = browserId || 'vivaldi';
+  if (!pairingToken || !configuredId) {
+    setStatus('Select a Kreis profile and enter the pairing key');
     return;
   }
   clearConnection();
@@ -180,7 +185,7 @@ async function connect() {
     socket = ws;
     ws.onopen = () => {
       isConnecting = false;
-      ws.send(JSON.stringify({ type: 'hello', token: pairingToken, profile }));
+      ws.send(JSON.stringify({ type: 'hello', token: pairingToken, profileId: configuredId, browserId: configuredBrowser }));
       heartbeat = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
       }, 20000);
@@ -188,6 +193,11 @@ async function connect() {
     ws.onmessage = event => {
       try {
         const message = JSON.parse(event.data);
+        if (message.type === 'error') {
+          setStatus(message.reason || 'Could not pair this browser profile');
+          clearConnection();
+          return;
+        }
         if (message.type === 'ready') {
           authenticated = true;
           setStatus('Connected');
@@ -242,7 +252,7 @@ async function connect() {
 chrome.runtime.onInstalled.addListener(() => { installContextMenus(); void connect(); });
 chrome.runtime.onStartup.addListener(() => { void connect(); });
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && ('pairingToken' in changes || 'profile' in changes)) {
+  if (area === 'local' && ('pairingToken' in changes || 'profile' in changes || 'profileId' in changes || 'browserId' in changes)) {
     clearConnection();
     void connect();
   }
