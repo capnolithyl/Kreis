@@ -190,7 +190,7 @@ export default function RadialWheel({
     }
     dragRef.current = null;
     if (active.moved) {
-      suppressClickUntil.current = Date.now() + 600;
+      suppressClickUntil.current = Date.now() + 150;
       if (!cancelled && dragOverRef.current && onDropWedge) {
         onDropWedge(active.sourceId, dragOverRef.current.targetId, dragOverRef.current.mode);
       }
@@ -353,8 +353,8 @@ export default function RadialWheel({
         <X size={18} aria-hidden="true" />
       </button>
       {dragOver && <p className="wheel-drag-intent" role="status">{dragHint()}</p>}
-      {!dragOver && canDrag && buttons.length > 1 && (
-        <p className="wheel-drag-help">Drag a segment to reorder · Drop on another to group</p>
+      {!dragOver && !feedback && canDrag && buttons.length > 1 && (
+        <p className="wheel-drag-help">Drag near edges to reorder · Center to group</p>
       )}
       {feedback && !dragOver && (
         <div className="wheel-change-toast" role="status">
