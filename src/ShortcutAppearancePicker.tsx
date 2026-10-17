@@ -84,7 +84,9 @@ export function ColorPicker({ value, onChange }: PickerProps) {
   function editHex(next: string) {
     setHexDraft(next);
     const candidate = next.trim().startsWith('#') ? next.trim() : '#' + next.trim();
-    if (HEX_COLOR.test(candidate) || SHORT_HEX_COLOR.test(candidate)) {
+    // Only auto-commit full hex values. A three-digit shorthand can be
+    // committed on blur, otherwise it would interrupt typing six digits.
+    if (HEX_COLOR.test(candidate)) {
       onChange(normalizeShortcutColor(candidate));
     }
   }
@@ -105,7 +107,12 @@ export function ColorPicker({ value, onChange }: PickerProps) {
             value={hexDraft} maxLength={7} placeholder="#6385d7"
             aria-invalid={hexDraft.trim() !== current && !HEX_COLOR.test(hexDraft.trim()) && !SHORT_HEX_COLOR.test(hexDraft.trim())}
             onChange={event => editHex(event.target.value)}
-            onBlur={() => setHexDraft(current)}/>
+            onBlur={() => {
+              const trimmed = hexDraft.trim();
+              const candidate = trimmed.startsWith('#') ? trimmed : '#' + trimmed;
+              if (SHORT_HEX_COLOR.test(candidate)) onChange(normalizeShortcutColor(candidate));
+              else setHexDraft(current);
+            }}/>
           <span className="color-picker-hint">Pick a color or enter its hex code.</span>
         </div>
         <div className="color-picker-live-preview" title="Shortcut preview">
