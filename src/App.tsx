@@ -16,6 +16,8 @@ import { editWheelEntry, duplicateWheelEntry, deleteWheelEntry } from './wheelCo
 import { filterByTitle } from './titleFilter.mjs';
 import { SETTINGS_CATEGORIES, settingsCategoryTitle, type SettingsCategory } from './settingsCategories';
 import { ColorPicker, IconPicker } from './ShortcutAppearancePicker';
+import WheelColorPicker from './WheelColorPicker';
+import { defaultContextAppearance } from './contextAppearance.mjs';
 import { eligibleParentGroups, flattenHierarchy, getChildren, removeGroup, suggestParent, validateHierarchy } from './groupHierarchy.mjs';
 import { dropEntry, type DropMode } from './groupDragDrop.mjs';
 import type { CSSProperties } from 'react';
@@ -72,14 +74,21 @@ export default function App() {
   const [contextLabel, setContextLabel] = useState('');
   const [contextGroupId, setContextGroupId] = useState('');
   const [contextProfile, setContextProfile] = useState<string>('Work');
+  const [contextIcon, setContextIcon] = useState('globe');
+  const [contextColor, setContextColor] = useState('#6385d7');
+  const [contextColorOpen, setContextColorOpen] = useState(false);
   const [contextMenuEnabled, setContextMenuEnabled] = useState(false);
   const latestSettings = useRef(settings);
   latestSettings.current = settings;
 
   function openContextPicker(entry: ContextAdd) {
     if (!['browser', 'folder', 'app'].includes(entry.kind) || !entry.target) return;
+    const appearance = defaultContextAppearance(entry.kind);
     setContextAdd(entry);
     setContextLabel(entry.title.slice(0, 30) || 'New shortcut');
+    setContextIcon(appearance.icon);
+    setContextColor(appearance.color);
+    setContextColorOpen(false);
     setContextGroupId(suggestParent(latestSettings.current.entries, MAX_ITEMS_PER_WHEEL) || '');
     const configured = latestSettings.current.browserProfiles;
     setContextProfile(configured.some(profile => profile.id === entry.profile)
@@ -207,8 +216,8 @@ export default function App() {
         browserId: settings.browserProfiles.find(profile => profile.id === contextProfile)?.browserId
       } : {}),
       match: contextAdd.kind === 'browser' ? 'exact' : 'prefix',
-      icon: contextAdd.kind === 'folder' ? 'folder' : contextAdd.kind === 'app' ? 'rocket' : 'globe',
-      color: contextAdd.kind === 'folder' ? '#c1a062' : contextAdd.kind === 'app' ? '#438ba8' : '#6385d7',
+      icon: contextIcon,
+      color: contextColor,
       groupId: contextGroupId || undefined
     };
     const validation = validateEntry(entry);
@@ -785,6 +794,7 @@ export default function App() {
   const levelCountLabel = activeLevel?.kind === 'settings' ? 'categories'
     : activeLevel?.kind === 'group' ? 'shortcuts'
     : activeLevel?.kind === 'apps' ? 'windows' : 'tabs';
+  const ContextIcon = icons[contextIcon] || icons.globe;
 
   return (
     <main className={screen === 'wheel' ? 'wheel-screen' : 'settings-screen'}>
@@ -796,29 +806,59 @@ export default function App() {
             <button className="icon-button" onClick={() => void closeLauncher()} aria-label="Cancel Add to Kreis"><X/></button>
           </div>
           <p className="quick-add-target" title={contextAdd.target}>{contextAdd.target}</p>
-          <label>Shortcut label
-            <input autoFocus maxLength={30} value={contextLabel} onChange={event => setContextLabel(event.target.value)}/>
-          </label>
-          <label>Place shortcut in
-            <select value={contextGroupId} onChange={event => setContextGroupId(event.target.value)}>
-              <option value="" disabled={getChildren(settings.entries).length >= MAX_ITEMS_PER_WHEEL}>Main Kreis</option>
-              {flattenHierarchy(settings.entries).filter(item => item.entry.type === 'group').map(({entry, depth}) => (
-                <option key={entry.id} value={entry.id} disabled={getChildren(settings.entries, entry.id).length >= MAX_ITEMS_PER_WHEEL}>
-                  {`${'　'.repeat(depth)}↳ ${entry.title}`}
-                  {getChildren(settings.entries, entry.id).length >= MAX_ITEMS_PER_WHEEL ? ' (full)' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-          {contextAdd.kind === 'browser' && <label>Browser profile
-            <select value={contextProfile} onChange={event => setContextProfile(event.target.value)}>
-              {!settings.browserProfiles.some(p => p.id === contextProfile) && <option value="">Choose a profile</option>}
-              {settings.browserProfiles.map(p => <option key={p.id} value={p.id}>
-                {BROWSER_OPTIONS.find(b => b.id === p.browserId)?.name} · {p.name}
-              </option>)}
-            </select>
-          </label>}
-          <p className="helper">Choose any nested group, or Main Kreis. Nothing is saved until you confirm.</p>
+          <div className="quick-add-fields">
+            <label>Shortcut label
+              <input autoFocus maxLength={30} value={contextLabel} onChange={event => setContextLabel(event.target.value)}/>
+            </label>
+            <label>Place shortcut in
+              <select value={contextGroupId} onChange={event => setContextGroupId(event.target.value)}>
+                <option value="" disabled={getChildren(settings.entries).length >= MAX_ITEMS_PER_WHEEL}>Main Kreis</option>
+                {flattenHierarchy(settings.entries).filter(item => item.entry.type === 'group').map(({entry, depth}) => (
+                  <option key={entry.id} value={entry.id} disabled={getChildren(settings.entries, entry.id).length >= MAX_ITEMS_PER_WHEEL}>
+                    {`${'　'.repeat(depth)}↳ ${entry.title}`}
+                    {getChildren(settings.entries, entry.id).length >= MAX_ITEMS_PER_WHEEL ? ' (full)' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {contextAdd.kind === 'browser' && <label>Browser profile
+              <select value={contextProfile} onChange={event => setContextProfile(event.target.value)}>
+                {!settings.browserProfiles.some(p => p.id === contextProfile) && <option value="">Choose a profile</option>}
+                {settings.browserProfiles.map(p => <option key={p.id} value={p.id}>
+                  {BROWSER_OPTIONS.find(b => b.id === p.browserId)?.name} · {p.name}
+                </option>)}
+              </select>
+            </label>}
+            <div className="quick-add-appearance" aria-label="Shortcut appearance">
+              <div className="quick-add-preview">
+                <span className="quick-add-preview-icon" style={{ backgroundColor: contextColor }}>
+                  <ContextIcon size={19} strokeWidth={2} aria-hidden="true"/>
+                </span>
+                <span className="quick-add-preview-name" title={contextLabel}>{contextLabel.trim() || 'New shortcut'}</span>
+                <small>Preview</small>
+              </div>
+              <div className="quick-add-appearance-fields">
+                <IconPicker value={contextIcon} color={contextColor} onChange={setContextIcon}/>
+                <div className="appearance-field">
+                  <span className="appearance-label" id="quick-add-color-label">Color</span>
+                  <button type="button" className="quick-add-color-trigger"
+                    aria-labelledby="quick-add-color-label" aria-expanded={contextColorOpen}
+                    aria-controls="quick-add-color-editor"
+                    onClick={() => setContextColorOpen(open => !open)}>
+                    <span className="quick-add-color-swatch" style={{ backgroundColor: contextColor }} aria-hidden="true"/>
+                    <span className="quick-add-color-info"><strong>{contextColor.toUpperCase()}</strong><small>Choose color</small></span>
+                    <ChevronDown size={18} className={contextColorOpen ? 'icon-picker-chevron is-open' : 'icon-picker-chevron'}/>
+                  </button>
+                </div>
+              </div>
+              {contextColorOpen && (
+                <div className="quick-add-color-editor" id="quick-add-color-editor">
+                  <WheelColorPicker value={contextColor} onChange={setContextColor}/>
+                </div>
+              )}
+            </div>
+            <p className="helper">Choose a destination, icon and color. Nothing is saved until you confirm.</p>
+          </div>
           {error && <p className="dialog-error" role="alert">{error}</p>}
           <div className="quick-add-actions">
             <button className="secondary" onClick={() => void closeLauncher()}>Cancel</button>

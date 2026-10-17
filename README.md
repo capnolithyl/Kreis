@@ -4,7 +4,7 @@
 
 Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeScript. Browser-tab integration uses an optional unpacked Chromium extension. Kreis 0.12 supports configurable browser profiles for Vivaldi, Chrome, Edge, Brave, and Opera (the same Chromium extension APIs; test each browser on your PC).
 
-> **Status:** Active development. The documentation below describes Kreis **0.12.0**. Planned changes are tracked in the [roadmap](ROADMAP.md).
+> **Status:** Active development. The documentation below describes Kreis **0.12.1**. Planned changes are tracked in the [roadmap](ROADMAP.md).
 
 ## Features
 
@@ -90,9 +90,9 @@ The extension popup includes **Tab matching diagnostics** for troubleshooting. A
 
 ## Add to Kreis from outside the app
 
-**File Explorer:** Open **Settings → Integrations** to enable or disable per-user **Add to Kreis** context-menu commands for folders, `.exe` files, and `.lnk` shortcuts. On Windows 11, these commands may appear under **Show more options**. No administrator privileges are required for this opt-in integration.
+**File Explorer:** Open **Settings → Integrations** to enable or disable per-user **Add to Kreis** context-menu commands for folders, `.exe` files, and `.lnk` shortcuts. On Windows 11, these commands may appear under **Show more options**. No administrator privileges are required for this opt-in integration. The confirmation picker now lets you choose the destination **and the shortcut icon and color** before saving.
 
-**Chromium browser:** With the companion extension installed and paired, right-click a link or page and choose **Add link to Kreis** or **Add page to Kreis**. A confirmation picker lets you change the shortcut label and select its destination. The browser action requires a paired connection to Kreis.
+**Chromium browser:** With the companion extension installed and paired, right-click a link or page and choose **Add link to Kreis** or **Add page to Kreis**. The confirmation picker lets you change the label, destination, icon, and wheel color. Colors are chosen in an embedded picker, avoiding the native color-popup issue. The browser action requires a paired connection to Kreis.
 
 ## Development
 
