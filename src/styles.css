@@ -20,6 +20,14 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .wheel-segment-content { color: #f5f8ff; transition: transform 170ms cubic-bezier(.2,.8,.2,1); transform-box: fill-box; transform-origin: center; }
 .wheel-segment-icon { fill: none; color: #f5f8ff; filter: drop-shadow(0 1px 2px #0006); transition: color 170ms ease; }
 .wheel-segment-label { fill: #f1f5fd; font-family: inherit; font-size: var(--wheel-label-size, 12px); font-weight: 650; letter-spacing: .05px; dominant-baseline: auto; paint-order: stroke fill; stroke: #0e1725; stroke-width: 2.3px; stroke-linejoin: round; }
+/* Number badges sit closer to the outside of each slice, separate from its label.
+   Pointer handling remains on the parent wedge so badges cannot steal dragging. */
+.wheel-quick-key { pointer-events: none; }
+.wheel-quick-key-circle { fill: #101b2fe8; stroke: #c2d9f4b5; stroke-width: 1.5px; }
+.wheel-quick-key-number { fill: #fff; font-family: inherit; font-size: 13px; font-weight: 800; paint-order: stroke fill; stroke: #172134; stroke-width: .65px; }
+.wheel-segment:hover .wheel-quick-key-circle, .wheel-segment:focus-visible .wheel-quick-key-circle {
+  fill: #40638e; stroke: #f3f8ff;
+}
 .wheel-segment:hover .wheel-segment-tint, .wheel-segment:focus-visible .wheel-segment-tint { fill-opacity: .45; }
 .wheel-segment:hover .wheel-segment-base, .wheel-segment:focus-visible .wheel-segment-base { filter: brightness(1.22); }
 .wheel-segment:hover .wheel-segment-content, .wheel-segment:focus-visible .wheel-segment-content { transform: translateY(-3px) scale(1.05); }
