@@ -677,17 +677,6 @@ export default function App() {
                       {draft.type === 'folder' && (
                         <p className="helper wide">Kreis focuses an already-open Downloads/other folder when possible, otherwise adds a tab to an existing File Explorer window on Windows 11. If no Explorer window exists, it opens a new one. Supports shell:Downloads (including relocated Downloads), absolute paths, environment variables, and ~ paths.</p>
                       )}
-                      <label>{draft.type === 'group' ? 'Parent group' : 'Placement'}
-                        <select value={draft.groupId || ''}
-                          onChange={event => setDraft({...draft, groupId: event.target.value || undefined})}>
-                          <option value="">Main Kreis (top level)</option>
-                          {eligibleParentGroups(settings.entries, draft.id).map(group => (
-                            <option key={group.id} value={group.id}>
-                              {`${'　'.repeat(group.depth)}↳ ${group.title}`}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
                       {draft.type === 'browser' && (
                         <>
                           <label>Vivaldi profile
@@ -708,6 +697,17 @@ export default function App() {
                       )}
                     </>
                   )}
+                      <label>{draft.type === 'group' ? 'Parent group' : 'Placement'}
+                        <select value={draft.groupId || ''}
+                          onChange={event => setDraft({...draft, groupId: event.target.value || undefined})}>
+                          <option value="">Main Kreis (top level)</option>
+                          {eligibleParentGroups(settings.entries, draft.id).map(group => (
+                            <option key={group.id} value={group.id}>
+                              {`${'　'.repeat(group.depth)}↳ ${group.title}`}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                   <IconPicker value={draft.icon} color={draft.color}
                     onChange={icon => setDraft(current => current ? {...current, icon} : current)}/>
                   <ColorPicker value={draft.color}
