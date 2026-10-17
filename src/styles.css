@@ -299,3 +299,68 @@ input::placeholder { color: #687692; }
 .quick-add-shell label input { flex: none; }
 .quick-add-shell .helper { margin: 0; }
 .quick-add-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: auto; }
+
+/* Right-click actions are part of the radial launcher, not the Settings screen.
+   Keep menu, confirmation and editors inside the transparent 600px Tauri window. */
+.wheel-context-dismiss {
+  position: absolute; inset: 0; z-index: 24;
+  border: 0; padding: 0; background: transparent; cursor: default;
+}
+.wheel-context-menu {
+  position: absolute; z-index: 25; width: 210px;
+  padding: 6px; border: 1px solid #627b9c;
+  border-radius: 13px; background: #172437f7;
+  box-shadow: 0 18px 52px #000c, inset 0 1px #ffffff1b;
+  display: flex; flex-direction: column; gap: 2px;
+  color: #ecf3ff; backdrop-filter: blur(15px);
+}
+.wheel-context-title {
+  padding: 9px 10px; margin-bottom: 3px;
+  border-bottom: 1px solid #465a72;
+  font-size: 11px; font-weight: 800;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.wheel-context-menu button {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; border: 0; border-radius: 7px;
+  padding: 8px 10px; background: transparent;
+  color: #e0eaf9; text-align: left; font-size: 12px;
+}
+.wheel-context-menu button:hover,
+.wheel-context-menu button:focus-visible { background: #354968; }
+.wheel-context-menu button.is-danger { color: #ffb8c3; border-top: 1px solid #465a72; border-radius: 0; padding-top: 10px; }
+.wheel-context-menu button.is-danger:hover { background: #622f40; border-radius: 7px; }
+
+.wheel-item-backdrop {
+  position: absolute; inset: 0; z-index: 30;
+  display: grid; place-items: center; padding: 48px;
+  background: #080e1cc9; backdrop-filter: blur(6px);
+  border-radius: 50%;
+}
+.wheel-item-dialog {
+  width: 100%; max-width: 440px; max-height: 490px;
+  padding: 20px 22px; overflow-y: auto;
+  background: #19263a; border: 1px solid #6a84a9;
+  border-radius: 16px; box-shadow: 0 22px 70px #000b;
+  display: flex; flex-direction: column; gap: 13px;
+  scrollbar-color: #586d8d transparent; color: #eff5ff;
+}
+.wheel-item-dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.wheel-item-dialog-heading small { color: #91b2e0; font-size: 9px; letter-spacing: 1.4px; font-weight: 800; }
+.wheel-item-dialog-heading h2 { font-size: 19px; margin: 4px 0 2px; }
+.wheel-item-dialog-heading p { margin: 0; font-size: 11px; color: #aabbd5; }
+.wheel-item-close { width: 30px; height: 30px; flex: 0 0 30px; border: 0; border-radius: 8px; color: #d4e4f9; background: #2c3c56; display: grid; place-items: center; }
+.wheel-item-field { display: flex; flex-direction: column; gap: 7px; font-size: 12px; color: #c4d5e9; }
+.wheel-item-field input, .wheel-item-field select { flex: none; width: 100%; }
+.wheel-item-two-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.wheel-item-pickers .appearance-field { width: 100%; }
+.wheel-item-pickers .icon-picker-gallery { max-height: 185px; overflow: auto; }
+.wheel-item-pickers .icon-picker-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.wheel-item-pickers .color-picker-layout { gap: 10px; }
+.wheel-item-pickers .color-picker-live-preview { display: none; }
+.wheel-item-pickers .color-picker-details input { min-width: 0; }
+.wheel-item-warning { font-size: 12px; line-height: 1.6; padding: 13px; border: 1px solid #9d697a; background: #3f2a38; color: #f6d4dc; border-radius: 10px; }
+.wheel-item-error { margin: 0; font-size: 11px; color: #ffd4df; padding: 8px; background: #683244; border-radius: 8px; }
+.wheel-item-dialog-actions { display: flex; gap: 10px; justify-content: flex-end; padding-top: 12px; margin-top: 4px; border-top: 1px solid #394e69; }
+.wheel-item-danger-button { display: inline-flex; align-items: center; gap: 8px; color: #fff4f5; background: #9d3c52; border: 1px solid #c57586; border-radius: 8px; padding: 9px 15px; font-size: 12px; font-weight: 700; }
+.wheel-item-danger-button:hover { background: #bc5068; }
