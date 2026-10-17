@@ -1,8 +1,9 @@
 //! Windows-specific cursor lookup, native application window discovery, and focusing.
-use std::ffi::OsStr;
+use std::{ffi::OsStr, os::windows::ffi::OsStrExt};
 use windows_sys::Win32::{
     Foundation::{CloseHandle, BOOL, HWND, LPARAM, POINT},
     System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION},
+    UI::Shell::ShellExecuteW,
     UI::WindowsAndMessaging::{
         EnumWindows, GetCursorPos, GetWindow, GetWindowTextLengthW, GetWindowTextW,
         GetWindowThreadProcessId, IsIconic, IsWindowVisible, SetForegroundWindow,
@@ -114,6 +115,18 @@ pub fn focus_application_window(executable: &str, id: &str) -> Result<(), String
 }
 
 pub fn focus_or_launch(executable: &str) -> Result<(), String> {
+    // Start Menu / desktop shortcuts are .lnk files, not executable process names.
+    // Let the Windows Shell resolve the link safely without invoking cmd.exe.
+    if executable.to_ascii_lowercase().ends_with(".lnk") {
+        let path: Vec<u16> = OsStr::new(executable).encode_wide().chain(std::iter::once(0)).collect();
+        let verb: Vec<u16> = OsStr::new("open").encode_wide().chain(std::iter::once(0)).collect();
+        let result = unsafe { ShellExecuteW(
+            std::ptr::null_mut(), verb.as_ptr(), path.as_ptr(),
+            std::ptr::null(), std::ptr::null(), 1
+        ) };
+        return if (result as isize) > 32 { Ok(()) }
+            else { Err(format!("Windows could not open shortcut {executable}")) };
+    }
     if let Some(window) = list_application_windows(executable)?.first() {
         return focus_handle(&window.id);
     }
