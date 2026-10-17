@@ -569,40 +569,42 @@ export default function App() {
               <div className="section-title">
                 <h2>Shortcuts and groups <span className="count">{rootEntries.length}/12 main · {settings.entries.length} total</span></h2>
                 <div className="section-buttons">
-                  <button className="secondary" disabled={rootEntries.length >= MAX_ITEMS_PER_WHEEL}
-                    onClick={() => { setDraft({ ...DEFAULT_GROUP }); setError(''); }}>
+                  <button className="secondary" disabled={!canAddToAnyWheel}
+                    onClick={() => { setDraft({ ...DEFAULT_GROUP, groupId: defaultNewParent }); setError(''); }}>
                     <Plus size={16}/> Add group
                   </button>
-                  <button className="secondary"
-                    disabled={rootEntries.length >= MAX_ITEMS_PER_WHEEL && groupIds.size === 0}
-                    onClick={() => {
-                      setDraft({ ...DEFAULT_NEW, groupId: rootEntries.length >= MAX_ITEMS_PER_WHEEL
-                        ? settings.entries.find(entry => entry.type === 'group')?.id : undefined });
-                      setError('');
-                    }}>
+                  <button className="secondary" disabled={!canAddToAnyWheel}
+                    onClick={() => { setDraft({ ...DEFAULT_NEW, groupId: defaultNewParent }); setError(''); }}>
                     <Plus size={16}/> Add shortcut
                   </button>
                 </div>
               </div>
-              <p className="helper">Create a group, then edit a shortcut and set its placement to that group. Groups keep the main wheel tidy; browser and desktop-app shortcuts still open their own matching tab/window wheels.</p>
+              <p className="helper">Build your own structure, like Work → IHM → Frontend or Personal → Runagaldr → VS Code. Edit any entry to choose its parent group, or click + on a group to add a subgroup. Each Kreis holds up to 12 items; Back moves up one level.</p>
               <div className="entry-list">
-                {arrangedEntries.map(entry => {
+                {arrangedEntries.map(({ entry, depth }) => {
                   const Icon = icons[entry.icon] || icons.rocket;
                   const siblings = settings.entries.filter(item => (item.groupId || '') === (entry.groupId || ''));
                   const siblingIndex = siblings.findIndex(item => item.id === entry.id);
                   const isGroup = entry.type === 'group';
                   return (
-                    <div className={`entry-row${isGroup ? ' entry-row--group' : ''}${entry.groupId ? ' entry-row--child' : ''}`} key={entry.id}>
+                    <div className={`entry-row${isGroup ? ' entry-row--group' : ''}${depth > 0 ? ' entry-row--child' : ''}`} key={entry.id}
+                      style={{ '--nest-depth': depth } as CSSProperties}>
                       <div className="entry-icon" style={{background: entry.color}}><Icon size={20}/></div>
                       <div className="entry-name">
                         <strong>{entry.title}</strong>
-                        <small>{isGroup ? `Group · ${childrenFor(entry.id).length} shortcuts`
+                        <small>{isGroup ? `Group · ${childrenFor(entry.id).length} items`
                           : entry.type === 'app' ? 'Windows app' : entry.type === 'folder' ? 'File Explorer folder' : `Vivaldi · ${entry.profile}`}</small>
                       </div>
                       <span className="entry-target" title={entry.target}>
-                        {isGroup ? 'Nested Kreis' : entry.target}
+                        {isGroup ? (entry.groupId ? 'Sub-Kreis' : 'Group Kreis') : entry.target}
                       </span>
                       <div className="entry-actions">
+                        {isGroup && <button className="tiny add-subgroup" title={`Create a subgroup inside ${entry.title}`}
+                          aria-label={`Add subgroup inside ${entry.title}`}
+                          disabled={childrenFor(entry.id).length >= MAX_ITEMS_PER_WHEEL}
+                          onClick={() => { setDraft({ ...DEFAULT_GROUP, groupId: entry.id }); setError(''); }}>
+                          <Plus size={15}/>
+                        </button>}
                         <button className="tiny" aria-label={`Move ${entry.title} up`} disabled={siblingIndex <= 0}
                           onClick={() => void moveEntry(entry.id, -1)}>↑</button>
                         <button className="tiny" aria-label={`Move ${entry.title} down`} disabled={siblingIndex >= siblings.length - 1}
@@ -675,12 +677,14 @@ export default function App() {
                       {draft.type === 'folder' && (
                         <p className="helper wide">Kreis focuses an already-open Downloads/other folder when possible, otherwise adds a tab to an existing File Explorer window on Windows 11. If no Explorer window exists, it opens a new one. Supports shell:Downloads (including relocated Downloads), absolute paths, environment variables, and ~ paths.</p>
                       )}
-                      <label>Placement
+                      <label>{draft.type === 'group' ? 'Parent group' : 'Placement'}
                         <select value={draft.groupId || ''}
                           onChange={event => setDraft({...draft, groupId: event.target.value || undefined})}>
-                          <option value="">Main Kreis</option>
-                          {settings.entries.filter(entry => entry.type === 'group').map(group => (
-                            <option key={group.id} value={group.id}>{group.title}</option>
+                          <option value="">Main Kreis (top level)</option>
+                          {eligibleParentGroups(settings.entries, draft.id).map(group => (
+                            <option key={group.id} value={group.id}>
+                              {`${'　'.repeat(group.depth)}↳ ${group.title}`}
+                            </option>
                           ))}
                         </select>
                       </label>
@@ -709,7 +713,7 @@ export default function App() {
                   <ColorPicker value={draft.color}
                     onChange={color => setDraft(current => current ? {...current, color} : current)}/>
                 </div>
-                {draft.type === 'group' && <p className="helper">Once saved, edit any shortcut to assign it to this group.</p>}
+                {draft.type === 'group' && <p className="helper">Groups can contain shortcuts and other groups. Pick a parent to nest this Kreis, or leave it at the top level. Its descendants cannot be selected as parents.</p>}
                 {error && <p className="dialog-error" role="alert">{error}</p>}
                 <div className="dialog-actions">
                   <button className="secondary" onClick={() => setDraft(null)}>Cancel</button>
