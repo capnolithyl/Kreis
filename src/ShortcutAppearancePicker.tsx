@@ -95,7 +95,7 @@ export function ColorPicker({ value, onChange }: PickerProps) {
       <div className="color-picker-layout">
         <label className="color-picker-swatch" style={{ backgroundColor: current }}
           title="Click to choose a color">
-          <span className="sr-only">Choose shortcut color</span>
+          <span className="color-picker-choose">Choose color</span>
           <input type="color" aria-labelledby="shortcut-color-label"
             value={current} onChange={event => onChange(event.target.value)}/>
         </label>
