@@ -4,7 +4,7 @@
 
 Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeScript. Browser-tab integration currently uses an optional unpacked Chromium extension configured for **Vivaldi**.
 
-> **Status:** Active development. The documentation below describes Kreis **0.11.1**. Planned changes are tracked in the [roadmap](ROADMAP.md).
+> **Status:** Active development. The documentation below describes Kreis **0.11.2**. Planned changes are tracked in the [roadmap](ROADMAP.md).
 
 ## Features
 
@@ -17,6 +17,7 @@ Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeS
 - **Quick Keys:** Every slice up to the tenth displays a large translucent background numeral. Press **1–9** for slices 1–9, or **0** for slice 10, on the currently open Kreis. Numbers also work in nested groups and tab/window pickers.
 - **Appearance:** Choose slice icons and colors, and adjust font and label sizes.
 - **Optional context menus:** Add shortcuts from File Explorer folders, `.exe` files and `.lnk` shortcuts, or from webpage and link context menus in the companion browser extension.
+- **Generic first run:** Starts with familiar websites, Downloads, and a sample nested Tools group. Your saved configuration remains untouched by updates.
 - **Local configuration:** Settings and shortcuts are saved locally; no Kreis account is required.
 
 ## Terminology
@@ -52,7 +53,9 @@ Open **Settings → Shortcuts & Groups** from the hub or tray menu. You can add 
 
 To nest a group, set its **Parent group** (or the shortcut's **Placement**). The Settings outline and the in-wheel drag-and-drop actions both support nested groups. A parent group can hold up to 10 direct entries regardless of how many are inside its child groups. Older 11/12-slice Kreise remain accessible, editable and reorderable, but cannot gain more slices while over the new limit.
 
-**Existing settings are preserved when updating.** Generic starter shortcuts are planned for a future release; the current built-in starter data has not yet been changed.
+**Fresh installs start with a neutral layout:** Google, YouTube, Wikipedia, Downloads, and a **Tools** group containing GitHub and Notepad. Browser shortcuts open in the system default browser without the optional Vivaldi extension; connecting the extension enables existing-tab focusing. Downloads uses Windows' actual Downloads location and Notepad uses the built-in Windows app.
+
+**Existing settings are preserved when updating.** Kreis saves starter shortcuts on first launch. An existing layout, including an intentionally empty Kreis, is never overwritten by a version update. **Settings → Shortcuts & Groups → Restore starter shortcuts** lets you intentionally restore the samples (this replaces the current shortcuts and groups).
 
 ### Work with the wheel
 
@@ -64,7 +67,7 @@ To nest a group, set its **Parent group** (or the shortcut's **Placement**). The
 - **Click** the hub to open Settings from the main Kreis or return to the parent Kreis. **Hold and drag** the hub to move the entire launcher without rearranging any slices. Placement is temporary; the next opening is cursor-centered again. **Backspace** goes back one level; **Escape** closes the launcher.
 - When a browser shortcut matches multiple tabs, select an existing tab from the result Kreis or choose **New tab**. Application shortcuts with multiple matching windows show a similar picker.
 
-The optional generic starter shortcuts are still planned; existing saved layouts are not overwritten by upgrades.
+Starter shortcuts are saved on first run only; your saved layout is not overwritten by future upgrades.
 
 ## Browser companion (Vivaldi)
 
@@ -116,7 +119,7 @@ A matching hash confirms that the extracted installer agrees with its checksum m
 - Native application focusing and File Explorer tab reuse depend on Windows behavior and may fall back to opening a new instance or tab when a safe existing match cannot be identified.
 - A `.lnk` shortcut opens through Windows Shell and may not identify an already-running application for focus.
 - File Explorer context-menu integration is opt-in and does not extend to every Start menu or taskbar right-click menu.
-- Customizable browser profiles and generic first-run starter shortcuts are not implemented yet.
+- Customizable browser profiles are not implemented yet.
 
 ## Roadmap
 
@@ -124,7 +127,7 @@ The next milestones are **plans**, not released features.
 
 | Target | Planned improvements |
 | --- | --- |
-| **0.11.0 · Launcher usability** | Numbered Quick Keys using **1–9 and 0** and the safe 10-slice limit are shipped. Generic starter shortcuts remain planned. Hub dragging shipped in **0.10.2** and was stabilized in **0.10.3**. |
+| **0.11.0 · Launcher usability** | Numbered Quick Keys using **1–9 and 0** and the safe 10-slice limit are shipped. Generic starter shortcuts shipped in **0.11.2**. Hub dragging shipped in **0.10.2** and was stabilized in **0.10.3**. |
 | **0.12.0 · Browser and profile management** | Support additional Chromium-based browsers; add, rename, and remove profiles; separate browser identity from profile identity; assign shortcuts to individual browser/profile combinations; handle deletion without breaking shortcuts. |
 | **Later / under consideration** | Browser/profile auto-detection, improved keyboard accessibility, gesture navigation, and easier distribution/update options. |
 
