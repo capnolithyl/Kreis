@@ -27,7 +27,7 @@ The goal is to make Kreis welcoming on a clean install while keeping existing co
 
 **Acceptance:** Dragging the hub moves the entire Kreis smoothly. Dragging a slice still rearranges slices. Clicking the hub still works. Dismissing and reopening Kreis restores cursor-centered placement.
 
-### 3. Quick Keys for slices
+### 3. Quick Keys for slices (delivered in 0.11.0)
 
 - Show a small, readable number on each available slice.
 - Press **1–9** to activate slices 1–9; press **0** for slice 10.
@@ -39,7 +39,7 @@ The goal is to make Kreis welcoming on a clean install while keeping existing co
 
 **Acceptance:** The printed digit reliably activates that slice, on the correct Kreis level, without accidentally firing while editing text.
 
-### 4. Reduce direct slices from 12 to 10
+### 4. Reduce direct slices from 12 to 10 (delivered in 0.11.0)
 
 - New configurations and newly edited wheels should use a **10-slice limit** to match digits 0–9.
 - **Do not delete or truncate** existing wheels with 11 or 12 direct entries.
@@ -100,7 +100,7 @@ These are ideas rather than scoped commitments:
 - **Group:** A slice that opens a child Kreis.
 - **Hub:** Central control; drag it to reposition the window temporarily.
 - **Ring:** The set of slices around the hub.
-- **Quick Key:** Planned number assigned to a slice.
+- **Quick Key:** Number assigned to a slice (1–9 and 0 for the tenth).
 
 A **Group** is not itself a child Kreis; it **opens** one.
 
