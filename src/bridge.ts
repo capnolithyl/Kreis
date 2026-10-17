@@ -49,7 +49,7 @@ export type ContextAdd = {
   kind: 'browser' | 'folder' | 'app';
   target: string;
   title: string;
-  profile?: Profile | null;
+  profile?: string | null;
 };
 
 /** An Explorer context command may launch Kreis when it is not running yet. */
