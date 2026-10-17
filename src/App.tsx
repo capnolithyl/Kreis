@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
+import { getCurrentWindow, LogicalSize, PhysicalPosition } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { load, type Store } from '@tauri-apps/plugin-store';
@@ -15,6 +15,7 @@ import { SETTINGS_CATEGORIES, settingsCategoryTitle, type SettingsCategory } fro
 import { ColorPicker, IconPicker } from './ShortcutAppearancePicker';
 import { eligibleParentGroups, flattenHierarchy, getChildren, removeGroup, suggestParent, validateHierarchy } from './groupHierarchy.mjs';
 import { dropEntry, type DropMode } from './groupDragDrop.mjs';
+import { clampWindowToMonitors } from './hubDrag.mjs';
 import type { CSSProperties } from 'react';
 
 type WheelLevel =
@@ -565,6 +566,27 @@ export default function App() {
     void applyWheelContextEntries(result.entries, `Removed ${entry.title}`);
   }
 
+  /** Windows handles the physical drag for smooth motion even outside the WebView.
+   * Nothing is written to settings: the next opening re-centers near the cursor.
+   */
+  async function moveKreisByHub() {
+    try {
+      // Do not await any other action before starting the OS drag.
+      await window.startDragging();
+      // When the native drag completes, keep the whole wheel visible on one
+      // monitor. Tauri monitor coordinates and window bounds are physical pixels.
+      const [position, size, monitors] = await Promise.all([
+        window.outerPosition(), window.outerSize(), window.availableMonitors()
+      ]);
+      const next = clampWindowToMonitors(position, size, monitors);
+      if (position.x !== next.x || position.y !== next.y) {
+        await window.setPosition(new PhysicalPosition(next.x, next.y));
+      }
+    } catch (cause) {
+      setError(`Could not move Kreis: ${String(cause)}`);
+    }
+  }
+
   /** Drag/drop happens directly on the radial launcher. Settings arrows remain. */
   async function persistWheelDrop(sourceId: string, targetId: string | null, mode: DropMode,
     group?: { id: string; title: string }) {
@@ -772,6 +794,7 @@ export default function App() {
           pageCount={pageCount}
           onSettings={() => openSettingsWheel()}
           onBack={backOneLevel}
+          onHubDrag={() => void moveKreisByHub()}
           onClose={() => void closeLauncher()}
           onPageChange={setTabPage}
           allowRearrange={!activeLevel || activeLevel.kind === 'group'}
