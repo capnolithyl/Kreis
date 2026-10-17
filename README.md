@@ -121,7 +121,7 @@ The next milestones are **plans**, not released features.
 
 | Target | Planned improvements |
 | --- | --- |
-| **0.11.0 · Launcher usability** | Neutral starter shortcuts; numbered Quick Keys using **1–9 and 0**; transition from 12 to 10 slices without losing existing entries. Hub dragging shipped early in **0.10.2**. |
+| **0.11.0 · Launcher usability** | Neutral starter shortcuts; numbered Quick Keys using **1–9 and 0**; transition from 12 to 10 slices without losing existing entries. Hub dragging shipped early in **0.10.2** and was stabilized in **0.10.3**. |
 | **0.12.0 · Browser and profile management** | Support additional Chromium-based browsers; add, rename, and remove profiles; separate browser identity from profile identity; assign shortcuts to individual browser/profile combinations; handle deletion without breaking shortcuts. |
 | **Later / under consideration** | Browser/profile auto-detection, improved keyboard accessibility, gesture navigation, and easier distribution/update options. |
 
