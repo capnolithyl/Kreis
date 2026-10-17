@@ -32,7 +32,7 @@ try {
             $root = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$handle)
             if ($null -eq $root) { continue }
 
-            $condition = New-Object System.Windows.Automation.PropertyCondition(
+            $condition = [System.Windows.Automation.PropertyCondition]::new(
                 [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
                 [System.Windows.Automation.ControlType]::TabItem
             )
