@@ -18,6 +18,15 @@ Built with **Tauri 2 + Rust + React + TypeScript**. The browser companion is an 
 - For browser shortcuts with **more than one matching tab**, replaces the main wheel with a **sub-Kreis** displaying real tab titles. One match focuses directly; zero matches open the configured URL.
 - Sub-Kreis has **Back** in the center, **New tab** as an outer choice, and seven existing tabs per page. Paginate for more; Escape closes Kreis.
 
+## Visual shortcut appearance picker (0.6.3)
+
+In **Settings → Shortcuts & Groups**, click Edit on any shortcut or group to find the new appearance controls:
+
+- **Icon:** shows the currently selected Lucide icon as a real preview. Click it to open a searchable gallery of every available icon, with icon artwork and names. Changing an icon updates the preview before saving.
+- **Color:** a large, full-size color swatch uses the saved hex value directly, instead of relying on the tiny Windows native color-input thumbnail. Click the swatch to launch the system color picker, or enter a six-digit (or short three-digit) hex code. The accent preview updates while editing. Invalid partial hex values cannot be saved from the text field.
+
+The dialog scrolls its form internally if the icon gallery needs more room, keeping Save and Cancel visible. Saved icon keys, colors, and the rest of the shortcut format are unchanged. No Vivaldi extension update is needed.
+
 ## Minimized Explorer tab reuse fix (0.6.2)
 
 On Windows 11, Explorer can hide its tab controls from Windows UI Automation while the window is minimized, even though the matching folder remains registered in the Shell. Kreis now restores **only the Explorer window whose Shell folder path already matches the requested folder**, waits briefly for its tab controls, then selects the matching tab. It focuses that existing window rather than creating a duplicate Downloads tab. If the tab cannot be identified safely, it still uses the existing new-tab fallback.
