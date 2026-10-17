@@ -71,7 +71,7 @@ export function dropEntry(entries, sourceId, targetId, mode, options = {}) {
     }
   }
 
-  const error = validateHierarchy(next, options.limit || 12);
+  const error = validateHierarchy(next, options.limit || 10, entries);
   if (error) return fail(error);
 
   const byId = new Map(next.map(entry => [entry.id, entry]));
