@@ -1,7 +1,7 @@
 {
   "name": "kreis",
   "private": true,
-  "version": "0.10.0",
+  "version": "0.10.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,6 +12,7 @@
     "check:groups": "node --test tests/group-hierarchy.test.mjs",
     "check:wheel-drag": "node --test tests/group-drag-drop.test.mjs",
     "check:wheel-context": "node --test tests/wheel-context.test.mjs",
+    "check:wheel-color": "node --test tests/wheel-color.test.mjs",
     "check:context": "node --test tests/context-add.test.mjs",
     "check:chatgpt-tabs": "node --test tests/chatgpt-tab-matching.test.mjs"
   },

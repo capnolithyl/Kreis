@@ -352,15 +352,40 @@ input::placeholder { color: #687692; }
 .wheel-item-close { width: 30px; height: 30px; flex: 0 0 30px; border: 0; border-radius: 8px; color: #d4e4f9; background: #2c3c56; display: grid; place-items: center; }
 .wheel-item-field { display: flex; flex-direction: column; gap: 7px; font-size: 12px; color: #c4d5e9; }
 .wheel-item-field input, .wheel-item-field select { flex: none; width: 100%; }
-.wheel-item-two-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .wheel-item-pickers .appearance-field { width: 100%; }
 .wheel-item-pickers .icon-picker-gallery { max-height: 185px; overflow: auto; }
 .wheel-item-pickers .icon-picker-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.wheel-item-pickers .color-picker-layout { gap: 10px; }
-.wheel-item-pickers .color-picker-live-preview { display: none; }
-.wheel-item-pickers .color-picker-details input { min-width: 0; }
 .wheel-item-warning { font-size: 12px; line-height: 1.6; padding: 13px; border: 1px solid #9d697a; background: #3f2a38; color: #f6d4dc; border-radius: 10px; }
 .wheel-item-error { margin: 0; font-size: 11px; color: #ffd4df; padding: 8px; background: #683244; border-radius: 8px; }
 .wheel-item-dialog-actions { display: flex; gap: 10px; justify-content: flex-end; padding-top: 12px; margin-top: 4px; border-top: 1px solid #394e69; }
 .wheel-item-danger-button { display: inline-flex; align-items: center; gap: 8px; color: #fff4f5; background: #9d3c52; border: 1px solid #c57586; border-radius: 8px; padding: 9px 15px; font-size: 12px; font-weight: 700; }
 .wheel-item-danger-button:hover { background: #bc5068; }
+
+/* The wheel uses an embedded HSV editor. Never summon native input[type=color],
+   whose separate OS popup can dispatch clicks back to the hidden swatch. */
+.wheel-inline-color { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.wheel-inline-color-head { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 700; color: #cbdaf0; }
+.wheel-inline-color-preview { width: 36px; height: 26px; border-radius: 7px; border: 2px solid #eaf0fc94; box-shadow: 0 0 0 1px #0c1525; }
+.wheel-inline-color-shade { position: relative; width: 100%; height: 138px; border-radius: 10px;
+  border: 1px solid #ffffff66; overflow: hidden; touch-action: none; cursor: crosshair; }
+.wheel-inline-color-shade-white, .wheel-inline-color-shade-black { position: absolute; inset: 0; pointer-events: none; }
+.wheel-inline-color-shade-white { background: linear-gradient(to right, #fff, transparent); }
+.wheel-inline-color-shade-black { background: linear-gradient(to top, #000, transparent); }
+.wheel-inline-color-shade-thumb { position: absolute; width: 15px; height: 15px;
+  border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px #122136, 0 1px 6px #000b;
+  transform: translate(-50%, -50%); pointer-events: none; }
+.wheel-inline-color-shade:focus-visible { outline: 2px solid #accaff; outline-offset: 3px; }
+.wheel-inline-color-hue-label, .wheel-inline-color-hex-label { display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: #cad9ed; }
+.wheel-inline-color-hue-label input[type="range"] { width: 100%; height: 15px; appearance: none; -webkit-appearance: none; margin: 2px 0;
+  background: linear-gradient(to right, #f00 0%, #ff0 16.67%, #0f0 33.33%, #0ff 50%, #00f 66.67%, #f0f 83.33%, #f00 100%);
+  border: 1px solid #ffffff87; border-radius: 15px; cursor: pointer; }
+.wheel-inline-color-hue-label input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+  height: 22px; width: 13px; border-radius: 5px; border: 2px solid #fff; background: #1c2b43;
+  box-shadow: 0 1px 5px #000b; }
+.wheel-inline-color-presets { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px; }
+.wheel-inline-color-presets button { height: 24px; min-width: 0; border: 1px solid #ffffff6b; border-radius: 6px; padding: 0; cursor: pointer; }
+.wheel-inline-color-presets button:hover, .wheel-inline-color-presets button:focus-visible { transform: translateY(-2px); outline: 2px solid #d9eaff; outline-offset: 2px; }
+.wheel-inline-color-presets button.is-selected { outline: 2px solid #fff; outline-offset: 1px; }
+.wheel-inline-color-hex-label input { width: 100%; padding: 9px 11px; font-variant-numeric: tabular-nums; font-family: Consolas, monospace; }
+.wheel-inline-color-hex-label input[aria-invalid="true"] { border-color: #e3889e; }
+.wheel-inline-color-help { color: #9fb4d1; font-size: 10px; margin: 0; line-height: 1.4; }

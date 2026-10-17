@@ -242,10 +242,11 @@ The picker validates the target and refuses any destination with 12 shortcuts. I
 Right-click a saved shortcut or group **directly on the main or nested radial wheel**, or focus it with the keyboard and press **Shift+F10**, to open the native-looking Kreis context menu. This does not launch the item or start a drag. The menu closes if you click outside it or press Escape.
 
 - **Rename**, **Change color**, or **Change icon** without leaving the wheel.
-- **Edit details** to change the target, browser profile, URL matching, optional window title, and placement.
 - **Move to group** to file shortcuts or groups into another nested Kreis, including the main wheel. Cycles and 12-item overflows are rejected.
 - **Duplicate** an individual shortcut beside its original. Group duplication is intentionally excluded to avoid silently copying entire trees.
 - **Copy target** to the clipboard for browser URLs, executable paths, and folders.
 - **Delete shortcut/group** with confirmation. Deleting a group preserves its contents by moving its immediate children up a level. If that would overflow the parent, deletion is blocked.
+
+**Change color** in 0.10.1 uses an embedded palette, hue and shade editor, and hex input. It never opens the native browser/Windows color popup. For advanced target edits, profiles, or URL-matching changes, use Settings → Shortcuts.
 
 Changes are saved to Kreis's existing local store; the usual **Undo** toast can restore the previous wheel. Settings list controls and drag-and-drop behavior stay available. Browser tab-choice wheels and Settings categories intentionally have no shortcut context menu.

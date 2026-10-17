@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { Check, Trash2, X } from 'lucide-react';
-import { ColorPicker, IconPicker } from './ShortcutAppearancePicker';
+import { IconPicker } from './ShortcutAppearancePicker';
+import WheelColorPicker from './WheelColorPicker';
 import { eligibleParentGroups, getChildren } from './groupHierarchy.mjs';
 import type { Entry } from './types';
 
-export type WheelEditMode = 'rename' | 'color' | 'icon' | 'move' | 'details' | 'delete';
+export type WheelEditMode = 'rename' | 'color' | 'icon' | 'move' | 'delete';
 
 type Props = {
   entry: Entry;
@@ -22,7 +23,6 @@ const titles: Record<WheelEditMode, string> = {
   color: 'Change wheel color',
   icon: 'Change shortcut icon',
   move: 'Move to another Kreis',
-  details: 'Edit shortcut',
   delete: 'Delete shortcut'
 };
 
@@ -59,62 +59,24 @@ export default function WheelItemDialog({
           </button>
         </div>
 
-        {(mode === 'rename' || mode === 'details') && (
+        {mode === 'rename' && (
           <label className="wheel-item-field">
             Name
             <input type="text" maxLength={30} autoFocus required value={draft.title}
               onChange={event => setDraft(current => ({ ...current, title: event.target.value }))}/>
           </label>
         )}
-        {(mode === 'color' || mode === 'details') && (
-          <div className="wheel-item-pickers">
-            <ColorPicker value={draft.color}
-              onChange={color => setDraft(current => ({ ...current, color }))}/>
-          </div>
+        {mode === 'color' && (
+          <WheelColorPicker value={draft.color}
+            onChange={color => setDraft(current => ({ ...current, color }))}/>
         )}
-        {(mode === 'icon' || mode === 'details') && (
+        {mode === 'icon' && (
           <div className="wheel-item-pickers">
             <IconPicker value={draft.icon} color={draft.color}
               onChange={icon => setDraft(current => ({ ...current, icon }))}/>
           </div>
         )}
-        {mode === 'details' && entry.type !== 'group' && (
-          <>
-            <label className="wheel-item-field">
-              {entry.type === 'browser' ? 'Website URL' : entry.type === 'folder' ? 'Folder path' : 'Executable or shortcut'}
-              <input type="text" value={draft.target} required
-                onChange={event => setDraft(current => ({ ...current, target: event.target.value }))}/>
-            </label>
-            {entry.type !== 'folder' && (
-              <label className="wheel-item-field">
-                {entry.type === 'browser' ? 'Tab title contains (optional)' : 'Window title contains (optional)'}
-                <input type="text" value={draft.windowTitle || ''}
-                  onChange={event => setDraft(current => ({ ...current, windowTitle: event.target.value }))}/>
-              </label>
-            )}
-            {entry.type === 'browser' && (
-              <div className="wheel-item-two-fields">
-                <label className="wheel-item-field">
-                  Vivaldi profile
-                  <select value={draft.profile}
-                    onChange={event => setDraft(current => ({ ...current, profile: event.target.value as Entry['profile'] }))}>
-                    <option value="Work">Work</option><option value="Personal">Personal</option>
-                  </select>
-                </label>
-                <label className="wheel-item-field">
-                  URL matching
-                  <select value={draft.match}
-                    onChange={event => setDraft(current => ({ ...current, match: event.target.value as Entry['match'] }))}>
-                    <option value="exact">Exact URL</option>
-                    <option value="prefix">Path prefix</option>
-                    <option value="site">Whole site</option>
-                  </select>
-                </label>
-              </div>
-            )}
-          </>
-        )}
-        {(mode === 'move' || mode === 'details') && (
+        {mode === 'move' && (
           <label className="wheel-item-field">
             Destination
             <select value={draft.groupId || ''}
