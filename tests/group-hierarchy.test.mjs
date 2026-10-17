@@ -53,7 +53,7 @@ test('deleting group refuses overflow and loses no entries', () => {
 
 test('enforces per-level 10 maximum, detects missing parents and duplicates', () => {
   const many = [entry('Work'), ...Array.from({length:13},(_,i)=>entry('sub'+i,'group','Work'))];
-  assert.match(validateHierarchy(many), /exceeds 12/);
+  assert.match(validateHierarchy(many), /exceeds 10/);
   assert.match(validateHierarchy([entry('Orphan','browser','missing')]), /no longer exists/);
   assert.match(validateHierarchy([entry('A'),entry('A')]), /unique/);
 });
