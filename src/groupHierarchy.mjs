@@ -22,7 +22,14 @@ export function wouldCreateCycle(entries, entryId, newParentId) {
 }
 
 /** Validate all direct wheel capacities and the full parent graph before saving. */
-export function validateHierarchy(entries, limit = 12) {
+export function validateHierarchy(entries, limit = 10, previousEntries = null) {
+  // Preserve 11/12-slice wheels from older Kreis installs. Existing oversized
+  // groups may be renamed, reordered, or reduced, but can never grow larger.
+  const previousCounts = new Map();
+  for (const entry of previousEntries || []) {
+    const parent = entry.groupId || '';
+    previousCounts.set(parent, (previousCounts.get(parent) || 0) + 1);
+  }
   const ids = new Set();
   const groups = new Map();
   for (const entry of entries) {
@@ -42,7 +49,7 @@ export function validateHierarchy(entries, limit = 12) {
     counts.set(parentId, (counts.get(parentId) || 0) + 1);
   }
   for (const [parentId, count] of counts) {
-    if (count > limit) {
+    if (count > limit && count > (previousCounts.get(parentId) || 0)) {
       return parentId
         ? `The "${groups.get(parentId)?.title || 'unknown'}" group exceeds ${limit} items. Move some entries to another group.`
         : `The main Kreis can hold ${limit} items. Move entries into groups first.`;
@@ -75,7 +82,7 @@ export function flattenHierarchy(entries) {
 }
 
 /** Removing a group lifts immediate members to its parent, never deleting them. */
-export function removeGroup(entries, id, limit = 12) {
+export function removeGroup(entries, id, limit = 10) {
   const removed = entries.find(entry => entry.id === id);
   if (!removed) return { entries, error: 'Entry not found.' };
   const without = entries.filter(entry => entry.id !== id);
@@ -83,12 +90,12 @@ export function removeGroup(entries, id, limit = 12) {
   const next = removed.type === 'group'
     ? without.map(entry => entry.groupId === id ? { ...entry, groupId: parentId } : entry)
     : without;
-  const error = validateHierarchy(next, limit);
+  const error = validateHierarchy(next, limit, entries);
   return error ? { entries, error } : { entries: next, error: null };
 }
 
 /** Suggest root if available, otherwise the first group with free space. */
-export function suggestParent(entries, limit = 12) {
+export function suggestParent(entries, limit = 10) {
   if (getChildren(entries).length < limit) return undefined;
   return entries.find(entry => entry.type === 'group' && getChildren(entries, entry.id).length < limit)?.id;
 }
