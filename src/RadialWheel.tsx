@@ -140,7 +140,12 @@ export default function RadialWheel({
     mode: 'before' | 'after' | 'inside' | 'combine' | 'root';
   } | null>(null);
   const dragRef = useRef<{
-    sourceId: string; pointerId: number; startX: number; startY: number; moved: boolean;
+    sourceId: string; pointerId: number; startX: number; startY: number;
+    moved: boolean; element: SVGGElement;
+  } | null>(null);
+  const dragOverRef = useRef<{
+    sourceId: string; targetId: string | null;
+    mode: 'before' | 'after' | 'inside' | 'combine' | 'root';
   } | null>(null);
   const suppressClickUntil = useRef(0);
   const canDrag = allowRearrange && !busy && !groupCreation && buttons.length > 0;
@@ -163,30 +168,34 @@ export default function RadialWheel({
     const { x, y } = coordinate(event);
     const intent = wheelDropIntent(x, y, buttons.map(button => button.isGroup ? 'group' : 'shortcut'), allowMoveUp);
     if (!intent || intent.targetIndex === null && intent.mode !== 'root') {
+      dragOverRef.current = null;
       setDragOver(null);
       return;
     }
     const targetId = intent.targetIndex === null ? null : buttons[intent.targetIndex]?.key;
-    setDragOver(targetId === active.sourceId ? null : {
+    const next = targetId === active.sourceId ? null : {
       sourceId: active.sourceId,
       targetId,
       mode: intent.mode
-    });
+    };
+    dragOverRef.current = next;
+    setDragOver(next);
   }
 
   function endDrag(event: ReactPointerEvent<SVGSVGElement>, cancelled = false) {
     const active = dragRef.current;
     if (!active || active.pointerId !== event.pointerId) return;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
+    if (active.element.hasPointerCapture(event.pointerId)) {
+      active.element.releasePointerCapture(event.pointerId);
     }
     dragRef.current = null;
     if (active.moved) {
       suppressClickUntil.current = Date.now() + 600;
-      if (!cancelled && dragOver && onDropWedge) {
-        onDropWedge(active.sourceId, dragOver.targetId, dragOver.mode);
+      if (!cancelled && dragOverRef.current && onDropWedge) {
+        onDropWedge(active.sourceId, dragOverRef.current.targetId, dragOverRef.current.mode);
       }
     }
+    dragOverRef.current = null;
     setDragOver(null);
   }
 
@@ -246,13 +255,14 @@ export default function RadialWheel({
                 style={{ '--accent': button.color, '--segment-index': index } as CSSProperties}
                 onPointerDown={event => {
                   if (!canDrag || event.button !== 0) return;
-                  const svg = event.currentTarget.ownerSVGElement;
-                  if (!svg) return;
                   dragRef.current = {
                     sourceId: button.key, pointerId: event.pointerId,
-                    startX: event.clientX, startY: event.clientY, moved: false
+                    startX: event.clientX, startY: event.clientY, moved: false,
+                    element: event.currentTarget
                   };
-                  svg.setPointerCapture(event.pointerId);
+                  // Capture on the originating wedge, not the whole SVG.
+                  // A normal click must still select the original segment.
+                  event.currentTarget.setPointerCapture(event.pointerId);
                 }}
                 onClick={() => {
                   if (Date.now() < suppressClickUntil.current) return;
