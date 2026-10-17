@@ -18,6 +18,12 @@ Built with **Tauri 2 + Rust + React + TypeScript**. The browser companion is an 
 - For browser shortcuts with **more than one matching tab**, replaces the main wheel with a **sub-Kreis** displaying real tab titles. One match focuses directly; zero matches open the configured URL.
 - Sub-Kreis has **Back** in the center, **New tab** as an outer choice, and seven existing tabs per page. Paginate for more; Escape closes Kreis.
 
+## Minimized Explorer tab reuse fix (0.6.2)
+
+On Windows 11, Explorer can hide its tab controls from Windows UI Automation while the window is minimized, even though the matching folder remains registered in the Shell. Kreis now restores **only the Explorer window whose Shell folder path already matches the requested folder**, waits briefly for its tab controls, then selects the matching tab. It focuses that existing window rather than creating a duplicate Downloads tab. If the tab cannot be identified safely, it still uses the existing new-tab fallback.
+
+To test: open `shell:Downloads` (or your relocated Downloads path), minimize Explorer, then use Kreis's Downloads shortcut. It should restore Explorer on the same tab with no additional tab. Also try a minimized Explorer window with Downloads in a background tab, and confirm that opening an unrelated folder still creates a new tab.
+
 ## Explorer folder reuse fix (0.6.1)
 
 The default folder shortcut now uses `shell:Downloads`, which resolves Windows' actual Downloads Known Folder, including directories relocated to another drive. `%USERPROFILE%\\Downloads` still means the directory inside the profile and does not follow Windows' redirected Downloads setting.
