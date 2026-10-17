@@ -26,7 +26,7 @@ test('cannot move a group into itself, a child or another nonexistent group', ()
 test('moving a shortcut is allowed only when the destination has capacity', () => {
   const entries = [group('g', 'Full'), shortcut('move', 'Move'), ...Array.from({length: 12}, (_, n) => shortcut('f'+n, 'Item '+n, 'g'))];
   const result = editWheelEntry(entries, { ...entries[1], groupId: 'g' });
-  assert.match(result.error, /exceeds 12/);
+  assert.match(result.error, /exceeds 10/);
 });
 
 test('duplicate is inserted after source with its own id and inherited placement', () => {
@@ -41,7 +41,7 @@ test('duplicate is inserted after source with its own id and inherited placement
 
 test('duplicate does not exceed wheel limits or duplicate a group', () => {
   const full = Array.from({length: 12}, (_, n) => shortcut('a'+n, 'Link '+n));
-  assert.match(duplicateWheelEntry(full, 'a0', 'new').error, /12/);
+  assert.match(duplicateWheelEntry(full, 'a0', 'new').error, /10/);
   assert.match(duplicateWheelEntry([group('g', 'Group')], 'g', 'g2').error, /groups/);
 });
 
@@ -59,6 +59,6 @@ test('deleting a group refuses to overflow its parent', () => {
     ...Array.from({length: 11}, (_, n) => shortcut('x'+n,'Sibling'+n,'a')),
     shortcut('nested','Nested','b'), shortcut('nested2','Second nested','b')];
   const result = deleteWheelEntry(entries, 'b');
-  assert.match(result.error, /exceeds 12/);
+  assert.match(result.error, /exceeds 10/);
   assert.equal(result.entries, entries);
 });
