@@ -212,3 +212,75 @@ input::placeholder { color: #687692; }
 .entry-row--child .entry-name strong { color: #e0eaff; }
 .entry-actions .add-subgroup { display: inline-grid; place-items: center; color: #cbdcff; border: 1px solid #54739d; }
 .entry-actions .add-subgroup:hover:not(:disabled) { background: #425b7d; }
+
+/* Reorganize the actual Kreis: pointer drag targets are on SVG wedges, not Settings rows.
+   The form is a small confirmation inside the wheel, with no settings detour. */
+.wheel-segment { touch-action: none; user-select: none; }
+.wheel-segment.is-drag-source { filter: saturate(.52) brightness(.73); }
+.wheel-segment.is-drop-target .wheel-segment-tint {
+  fill-opacity: .62 !important;
+  filter: drop-shadow(0 0 12px var(--accent));
+}
+.wheel-segment.is-drop-target .wheel-segment-base { stroke: #dcecff; stroke-width: 3.5; }
+.wheel-segment.is-drop-before .wheel-segment-base { stroke: #72d6ff; stroke-width: 3.5; stroke-dasharray: 10 5; }
+.wheel-segment.is-drop-after .wheel-segment-base { stroke: #72d6ff; stroke-width: 3.5; stroke-dasharray: 10 5; }
+.wheel-segment.is-drop-inside .wheel-segment-tint { fill-opacity: .72 !important; }
+.wheel-segment.is-drop-combine .wheel-segment-tint { fill-opacity: .63 !important; }
+.wheel-center-drop-ring { fill: none; stroke: #bde4ff; stroke-width: 4; stroke-dasharray: 11 7; filter: drop-shadow(0 0 8px #6faafa); }
+.wheel-drag-intent, .wheel-drag-help {
+  position: absolute; left: 99px; right: 99px; bottom: 15px;
+  margin: 0; text-align: center; font-size: 11px; line-height: 1.4;
+  color: #e7f2ff; pointer-events: none;
+  text-shadow: 0 1px 5px #030a14;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.wheel-drag-help { opacity: .55; font-size: 10px; bottom: 12px; }
+.wheel-drag-intent {
+  left: 120px; right: 120px; color: white; bottom: 9px;
+  background: #233e5aef; border: 1px solid #8ab6e0;
+  padding: 5px 8px; border-radius: 8px; font-weight: 700;
+}
+.wheel-change-toast {
+  position: absolute; left: 110px; right: 110px; bottom: 6px;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: #183349ef; border: 1px solid #729fc1a3;
+  padding: 6px 10px; border-radius: 9px; color: #dbeffd;
+  font-size: 11px; line-height: 1.25;
+}
+.wheel-change-toast button {
+  color: white; border: 1px solid #8aadd6; border-radius: 6px;
+  background: #3d5e8a; padding: 3px 8px; font-size: 10px;
+  font-weight: 700;
+}
+.wheel-change-toast button:hover { background: #527bad; }
+.wheel-group-overlay {
+  position: absolute; inset: 0; z-index: 15; display: grid; place-items: center;
+  background: rgba(5, 10, 21, .64); border-radius: 50%;
+  backdrop-filter: blur(5px);
+}
+.wheel-group-form {
+  width: 310px; display: flex; flex-direction: column; gap: 10px;
+  padding: 22px; border-radius: 16px; background: #172438;
+  border: 1px solid #7b9ac4;
+  color: #e9f2ff; box-shadow: 0 16px 60px #000a;
+}
+.wheel-group-form strong { font-size: 19px; }
+.wheel-group-form > span {
+  color: #b5c6e0; font-size: 11px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.wheel-group-form label { color: #d1dcef; font-size: 12px; }
+.wheel-group-form input { width: 100%; font-size: 13px; }
+.wheel-group-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 5px; }
+.wheel-group-actions button {
+  border: 1px solid #506987; border-radius: 8px;
+  background: #273952; padding: 9px 12px; color: #e1ebfc;
+  font-size: 11px; font-weight: 700;
+}
+.wheel-group-actions button[type="submit"] {
+  background: #a4b7fb; border-color: #a4b7fb; color: #111e32;
+}
+.wheel-group-actions button:not(:disabled):hover { filter: brightness(1.2); }
+@media (prefers-reduced-motion: reduce) {
+  .wheel-segment.is-drop-target .wheel-segment-tint { transition: none; }
+}
