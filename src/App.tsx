@@ -11,6 +11,8 @@ import RadialWheel, { type WheelOption } from './RadialWheel';
 import { filterByTitle } from './titleFilter.mjs';
 import { SETTINGS_CATEGORIES, settingsCategoryTitle, type SettingsCategory } from './settingsCategories';
 import { ColorPicker, IconPicker } from './ShortcutAppearancePicker';
+import { eligibleParentGroups, flattenHierarchy, getChildren, removeGroup, suggestParent, validateHierarchy } from './groupHierarchy.mjs';
+import type { CSSProperties } from 'react';
 
 type WheelLevel =
   | { kind: 'settings'; entry: Entry }
@@ -381,53 +383,36 @@ export default function App() {
   }
 
   function childrenFor(groupId: string) {
-    return settings.entries.filter(entry => entry.type !== 'group' && entry.groupId === groupId);
+    return getChildren(settings.entries, groupId);
   }
 
   async function saveEntry() {
     if (!draft) return;
     const problem = validateEntry(draft);
     if (problem) return setError(problem);
-    const groups = settings.entries.filter(entry => entry.type === 'group');
-    if (draft.type !== 'group' && draft.groupId && !groups.some(group => group.id === draft.groupId)) {
-      return setError('Select an existing group.');
-    }
     const entry: Entry = {
       ...draft,
       id: draft.id || crypto.randomUUID(),
       title: draft.title.trim(),
       target: draft.type === 'group' ? '' : draft.target.trim(),
-      groupId: draft.type === 'group' ? undefined : draft.groupId || undefined,
-      windowTitle: draft.type === 'app' || draft.type === 'browser' ? draft.windowTitle?.trim() || undefined : undefined
+      // Groups and shortcuts share the same parent ID for unlimited sub-Kreise.
+      groupId: draft.groupId || undefined,
+      windowTitle: draft.type === 'app' || draft.type === 'browser'
+        ? draft.windowTitle?.trim() || undefined : undefined
     };
     const entries = draft.id
       ? settings.entries.map(current => current.id === draft.id ? entry : current)
       : [...settings.entries, entry];
-    const rootCount = entries.filter(item => !item.groupId).length;
-    if (rootCount > MAX_ITEMS_PER_WHEEL) return setError('The main wheel can hold 12 shortcuts. Move an entry into a group first.');
-    for (const group of entries.filter(item => item.type === 'group')) {
-      if (entries.filter(item => item.groupId === group.id).length > MAX_ITEMS_PER_WHEEL) {
-        return setError(`The ${group.title} group already has 12 shortcuts.`);
-      }
-    }
+    const hierarchyError = validateHierarchy(entries, MAX_ITEMS_PER_WHEEL);
+    if (hierarchyError) return setError(hierarchyError);
     try { await persist({ ...settings, entries }); setDraft(null); setError(''); }
     catch (cause) { setError(String(cause)); }
   }
 
   async function deleteEntry(id: string) {
-    const removed = settings.entries.find(entry => entry.id === id);
-    if (!removed) return;
-    let entries = settings.entries.filter(entry => entry.id !== id);
-    if (removed.type === 'group') {
-      // Keep users' shortcuts when a group is removed.
-      entries = entries.map(entry =>
-        entry.groupId === id ? { ...entry, groupId: undefined } : entry
-      );
-      if (entries.filter(entry => !entry.groupId).length > MAX_ITEMS_PER_WHEEL) {
-        return setError('Cannot remove this group: the main wheel would have over 12 items. Move or remove some members first.');
-      }
-    }
-    try { await persist({ ...settings, entries }); setError(''); }
+    const result = removeGroup(settings.entries, id, MAX_ITEMS_PER_WHEEL);
+    if (result.error) return setError(result.error);
+    try { await persist({ ...settings, entries: result.entries }); setError(''); }
     catch (cause) { setError(String(cause)); }
   }
 
@@ -446,11 +431,10 @@ export default function App() {
     catch (cause) { setError(String(cause)); }
   }
 
-  const groupIds = new Set(settings.entries.filter(entry => entry.type === 'group').map(entry => entry.id));
-  const rootEntries = settings.entries.filter(entry => !entry.groupId || !groupIds.has(entry.groupId));
-  const arrangedEntries = rootEntries.flatMap(entry =>
-    entry.type === 'group' ? [entry, ...childrenFor(entry.id)] : [entry]
-  );
+  const rootEntries = getChildren(settings.entries);
+  const arrangedEntries = flattenHierarchy(settings.entries);
+  const defaultNewParent = suggestParent(settings.entries, MAX_ITEMS_PER_WHEEL);
+  const canAddToAnyWheel = rootEntries.length < MAX_ITEMS_PER_WHEEL || defaultNewParent !== undefined;
   const activeLevel = levels[levels.length - 1];
   const currentOptions = activeLevel?.kind === 'group'
     ? childrenFor(activeLevel.entry.id) : rootEntries;
