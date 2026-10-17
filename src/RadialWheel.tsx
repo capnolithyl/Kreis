@@ -1,6 +1,7 @@
 import { ArrowLeft, Plus, Settings2, X } from 'lucide-react';
 import { icons } from './icons';
-import type { CSSProperties, KeyboardEvent } from 'react';
+import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { wheelDropIntent } from './groupDragDrop.mjs';
 import { type WheelAppearance, wheelFontStack } from './types';
 
 export type WheelOption = {
@@ -11,6 +12,7 @@ export type WheelOption = {
   tooltip: string;
   onSelect: () => void;
   isNew?: boolean;
+  isGroup?: boolean;
 };
 
 type RadialWheelProps = {
@@ -27,6 +29,16 @@ type RadialWheelProps = {
   onSettings: () => void;
   onClose: () => void;
   onPageChange: (page: number) => void;
+  allowRearrange?: boolean;
+  allowMoveUp?: boolean;
+  onDropWedge?: (sourceId: string, targetId: string | null, mode: 'before' | 'after' | 'inside' | 'combine' | 'root') => void;
+  groupCreation?: { sourceTitle: string; targetTitle: string; name: string } | null;
+  onGroupNameChange?: (name: string) => void;
+  onConfirmGroup?: () => void;
+  onCancelGroup?: () => void;
+  feedback?: string;
+  canUndo?: boolean;
+  onUndo?: () => void;
 };
 
 const CENTER = 300;
@@ -118,9 +130,74 @@ function labelLines(label: string, count: number, fontSize: number): string[] {
 
 export default function RadialWheel({
   buttons, appearance, submenuTitle, tabCount, countLabel = 'tabs', busy, error, page, pageCount,
-  onBack, onSettings, onClose, onPageChange
+  onBack, onSettings, onClose, onPageChange, allowRearrange = false,
+  allowMoveUp = false, onDropWedge, groupCreation, onGroupNameChange,
+  onConfirmGroup, onCancelGroup, feedback, canUndo, onUndo
 }: RadialWheelProps) {
   const isSubmenu = Boolean(submenuTitle);
+  const [dragOver, setDragOver] = useState<{
+    sourceId: string; targetId: string | null;
+    mode: 'before' | 'after' | 'inside' | 'combine' | 'root';
+  } | null>(null);
+  const dragRef = useRef<{
+    sourceId: string; pointerId: number; startX: number; startY: number; moved: boolean;
+  } | null>(null);
+  const suppressClickUntil = useRef(0);
+  const canDrag = allowRearrange && !busy && !groupCreation && buttons.length > 0;
+
+  function coordinate(event: ReactPointerEvent<SVGSVGElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) * 600 / rect.width,
+      y: (event.clientY - rect.top) * 600 / rect.height
+    };
+  }
+
+  function updateDrag(event: ReactPointerEvent<SVGSVGElement>) {
+    const active = dragRef.current;
+    if (!active || active.pointerId !== event.pointerId) return;
+    if (!active.moved) {
+      if (Math.hypot(event.clientX - active.startX, event.clientY - active.startY) < 12) return;
+      active.moved = true;
+    }
+    const { x, y } = coordinate(event);
+    const intent = wheelDropIntent(x, y, buttons.map(button => button.isGroup ? 'group' : 'shortcut'), allowMoveUp);
+    if (!intent || intent.targetIndex === null && intent.mode !== 'root') {
+      setDragOver(null);
+      return;
+    }
+    const targetId = intent.targetIndex === null ? null : buttons[intent.targetIndex]?.key;
+    setDragOver(targetId === active.sourceId ? null : {
+      sourceId: active.sourceId,
+      targetId,
+      mode: intent.mode
+    });
+  }
+
+  function endDrag(event: ReactPointerEvent<SVGSVGElement>, cancelled = false) {
+    const active = dragRef.current;
+    if (!active || active.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    dragRef.current = null;
+    if (active.moved) {
+      suppressClickUntil.current = Date.now() + 600;
+      if (!cancelled && dragOver && onDropWedge) {
+        onDropWedge(active.sourceId, dragOver.targetId, dragOver.mode);
+      }
+    }
+    setDragOver(null);
+  }
+
+  function dragHint() {
+    if (!dragOver) return '';
+    if (dragOver.mode === 'root') return 'Move up one Kreis';
+    const title = buttons.find(button => button.key === dragOver.targetId)?.title || 'shortcut';
+    if (dragOver.mode === 'inside') return `Move into ${title}`;
+    if (dragOver.mode === 'combine') return `Create a group with ${title}`;
+    return `Move ${dragOver.mode} ${title}`;
+  }
 
   const activateWithKeyboard = (event: KeyboardEvent<SVGGElement>, action: () => void) => {
     if ((event.key === 'Enter' || event.key === ' ') && !busy) {
@@ -130,14 +207,17 @@ export default function RadialWheel({
   };
 
   return (
-    <div className="wheel" role="menu" aria-label={isSubmenu ? `${submenuTitle} tabs` : 'Kreis launcher'}
+    <div className="wheel" role="menu" aria-label={isSubmenu ? `${submenuTitle} ${countLabel}` : 'Kreis launcher'}
       style={{
         fontFamily: wheelFontStack(appearance.fontFamily),
         '--wheel-label-size': `${appearance.labelSize}px`,
         '--wheel-center-size': `${appearance.centerSize}px`
       } as CSSProperties}>
       <div className="wheel-enter">
-        <svg className="wheel-svg" viewBox="0 0 600 600" width="600" height="600" aria-label="Radial shortcuts">
+        <svg className="wheel-svg" viewBox="0 0 600 600" width="600" height="600" aria-label="Radial shortcuts"
+          onPointerMove={updateDrag}
+          onPointerUp={event => endDrag(event)}
+          onPointerCancel={event => endDrag(event, true)}>
           <defs>
             <radialGradient id="kreis-segment-base" cx="50%" cy="40%" r="80%">
               <stop offset="0%" stopColor="#25334b" />
@@ -161,11 +241,26 @@ export default function RadialWheel({
                 role="menuitem"
                 tabIndex={busy ? -1 : 0}
                 aria-label={button.tooltip}
-                aria-disabled={busy}
-                className="wheel-segment"
+                aria-disabled={busy || Boolean(groupCreation)}
+                className={`wheel-segment${dragOver?.sourceId === button.key ? ' is-drag-source' : ''}${dragOver?.targetId === button.key ? ` is-drop-target is-drop-${dragOver.mode}` : ''}`}
                 style={{ '--accent': button.color, '--segment-index': index } as CSSProperties}
-                onClick={() => { if (!busy) button.onSelect(); }}
-                onKeyDown={event => activateWithKeyboard(event, button.onSelect)}
+                onPointerDown={event => {
+                  if (!canDrag || event.button !== 0) return;
+                  const svg = event.currentTarget.ownerSVGElement;
+                  if (!svg) return;
+                  dragRef.current = {
+                    sourceId: button.key, pointerId: event.pointerId,
+                    startX: event.clientX, startY: event.clientY, moved: false
+                  };
+                  svg.setPointerCapture(event.pointerId);
+                }}
+                onClick={() => {
+                  if (Date.now() < suppressClickUntil.current) return;
+                  if (!busy && !groupCreation) button.onSelect();
+                }}
+                onKeyDown={event => {
+                  if (!groupCreation) activateWithKeyboard(event, button.onSelect);
+                }}
               >
                 <title>{button.tooltip}</title>
                 <path d={wedgePath(midpoint, buttons.length)} className="wheel-segment-base" />
@@ -196,6 +291,10 @@ export default function RadialWheel({
               </g>
             );
           })}
+          {dragOver?.mode === 'root' && (
+            <circle cx={CENTER} cy={CENTER} r={INNER_RADIUS - 8} className="wheel-center-drop-ring"
+              pointerEvents="none"/>
+          )}
           <circle
             className="wheel-inner-halo"
             cx={CENTER} cy={CENTER} r={INNER_RADIUS - 3}
@@ -243,7 +342,32 @@ export default function RadialWheel({
       <button className="close-wheel" type="button" onClick={onClose} aria-label="Close Kreis">
         <X size={18} aria-hidden="true" />
       </button>
-      {busy && <p className="wheel-loading" role="status">Finding your window…</p>}
+      {dragOver && <p className="wheel-drag-intent" role="status">{dragHint()}</p>}
+      {!dragOver && canDrag && buttons.length > 1 && (
+        <p className="wheel-drag-help">Drag a segment to reorder · Drop on another to group</p>
+      )}
+      {feedback && !dragOver && (
+        <div className="wheel-change-toast" role="status">
+          <span>{feedback}</span>
+          {canUndo && <button type="button" onClick={onUndo}>Undo</button>}
+        </div>
+      )}
+      {groupCreation && (
+        <div className="wheel-group-overlay">
+          <form className="wheel-group-form" onSubmit={event => { event.preventDefault(); onConfirmGroup?.(); }}>
+            <strong>Create a group</strong>
+            <span>{groupCreation.targetTitle} + {groupCreation.sourceTitle}</span>
+            <label htmlFor="wheel-group-name">Group name</label>
+            <input id="wheel-group-name" type="text" maxLength={30} autoFocus
+              value={groupCreation.name} onChange={event => onGroupNameChange?.(event.target.value)}/>
+            <div className="wheel-group-actions">
+              <button type="button" onClick={onCancelGroup}>Cancel</button>
+              <button type="submit" disabled={!groupCreation.name.trim() || busy}>Create</button>
+            </div>
+          </form>
+        </div>
+      )}
+      {busy && <p className="wheel-loading" role="status">Saving your Kreis…</p>}
       {error && <p className="wheel-error" role="alert">{error}</p>}
     </div>
   );
