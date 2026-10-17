@@ -198,6 +198,11 @@ async fn serve_client(stream: tokio::net::TcpStream, bridge: Arc<Bridge>, app: t
                 match input {
                     Some(Ok(Message::Text(text))) => {
                         let value: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+                        // Deleting a browser profile immediately revokes its
+                        // existing socket, not just future tab-routing commands.
+                        if profile.as_ref().is_some_and(|id| bridge.profile(id).is_none()) {
+                            break;
+                        }
                         if profile.is_none() {
                             if value.get("type").and_then(Value::as_str) != Some("hello") ||
                                 value.get("token").and_then(Value::as_str) != Some(bridge.token.as_str()) {
