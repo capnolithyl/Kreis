@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getCurrentWindow, LogicalSize, PhysicalPosition } from '@tauri-apps/api/window';
+import { availableMonitors, getCurrentWindow, LogicalSize, PhysicalPosition } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { load, type Store } from '@tauri-apps/plugin-store';
@@ -576,7 +576,7 @@ export default function App() {
       // When the native drag completes, keep the whole wheel visible on one
       // monitor. Tauri monitor coordinates and window bounds are physical pixels.
       const [position, size, monitors] = await Promise.all([
-        window.outerPosition(), window.outerSize(), window.availableMonitors()
+        window.outerPosition(), window.outerSize(), availableMonitors()
       ]);
       const next = clampWindowToMonitors(position, size, monitors);
       if (position.x !== next.x || position.y !== next.y) {
