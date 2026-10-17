@@ -35,6 +35,8 @@ jobs:
         run: npm run check:chatgpt-tabs
       - name: Test radial drag and drop
         run: npm run check:wheel-drag
+      - name: Test hub drag and monitor positioning
+        run: npm run check:hub-drag
       - name: Test wheel item context actions
         run: npm run check:wheel-context
       - name: Test wheel color conversion

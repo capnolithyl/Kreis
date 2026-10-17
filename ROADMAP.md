@@ -16,7 +16,7 @@ The goal is to make Kreis welcoming on a clean install while keeping existing co
 
 **Acceptance:** A clean installation has useful generic slices. Upgrading an existing installation leaves the user's saved Kreis unchanged.
 
-### 2. Drag the entire Kreis by the hub
+### 2. Drag the entire Kreis by the hub (delivered in 0.10.2)
 
 - Hold and drag the **hub** to reposition the whole launcher window on the current screen.
 - Preserve regular hub clicks: Settings on the Main Kreis, Back on a child Kreis. Use a small movement threshold so clicks are not mistaken for drags.
@@ -98,7 +98,7 @@ These are ideas rather than scoped commitments:
 - **Slice:** One selectable segment of the ring.
 - **Shortcut:** A slice with a destination such as an application, folder or website.
 - **Group:** A slice that opens a child Kreis.
-- **Hub:** Central control, planned as the drag handle for repositioning the window.
+- **Hub:** Central control; drag it to reposition the window temporarily.
 - **Ring:** The set of slices around the hub.
 - **Quick Key:** Planned number assigned to a slice.
 

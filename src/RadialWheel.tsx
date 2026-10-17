@@ -1,7 +1,8 @@
 import { ArrowLeft, Clipboard, Copy, FolderInput, Palette, Pencil, Plus, Settings2, Shapes, Trash2, X } from 'lucide-react';
 import { icons } from './icons';
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { wheelDropIntent } from './groupDragDrop.mjs';
+import { passedHubDragThreshold } from './hubDrag.mjs';
 import { type WheelAppearance, wheelFontStack } from './types';
 
 export type WheelContextAction = 'rename' | 'color' | 'icon' | 'move' | 'duplicate' | 'copy' | 'delete';
@@ -29,6 +30,7 @@ type RadialWheelProps = {
   pageCount: number;
   onBack: () => void;
   onSettings: () => void;
+  onHubDrag: () => void;
   onClose: () => void;
   onPageChange: (page: number) => void;
   allowRearrange?: boolean;
@@ -133,7 +135,7 @@ function labelLines(label: string, count: number, fontSize: number): string[] {
 
 export default function RadialWheel({
   buttons, appearance, submenuTitle, tabCount, countLabel = 'tabs', busy, error, page, pageCount,
-  onBack, onSettings, onClose, onPageChange, allowRearrange = false,
+  onBack, onSettings, onHubDrag, onClose, onPageChange, allowRearrange = false,
   allowMoveUp = false, onDropWedge, onContextAction, groupCreation, onGroupNameChange,
   onConfirmGroup, onCancelGroup, feedback, canUndo, onUndo
 }: RadialWheelProps) {
@@ -167,6 +169,60 @@ export default function RadialWheel({
     mode: 'before' | 'after' | 'inside' | 'combine' | 'root';
   } | null>(null);
   const suppressClickUntil = useRef(0);
+  const hubPointer = useRef<{ pointerId: number; startX: number; startY: number; element: HTMLButtonElement } | null>(null);
+  const suppressHubClick = useRef(false);
+
+  /** Hub drag is intentionally independent of the SVG slice drag gesture. */
+  function beginHubPress(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (event.button !== 0 || busy || groupCreation || contextMenu) return;
+    suppressHubClick.current = false;
+    hubPointer.current = {
+      pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
+      element: event.currentTarget
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveHubPress(event: ReactPointerEvent<HTMLButtonElement>) {
+    const gesture = hubPointer.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (!passedHubDragThreshold(gesture.startX, gesture.startY, event.clientX, event.clientY)) return;
+    hubPointer.current = null;
+    suppressHubClick.current = true;
+    // Release WebView capture before Windows takes over the native window drag.
+    if (gesture.element.hasPointerCapture(event.pointerId)) {
+      gesture.element.releasePointerCapture(event.pointerId);
+    }
+    onHubDrag();
+  }
+
+  function endHubPress(event: ReactPointerEvent<HTMLButtonElement>) {
+    const gesture = hubPointer.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    hubPointer.current = null;
+    if (gesture.element.hasPointerCapture(event.pointerId)) {
+      gesture.element.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function clickHub(event: ReactMouseEvent<HTMLButtonElement>, action: () => void) {
+    // The native drag may still generate a synthetic click after releasing the mouse.
+    // Keyboard-driven button clicks have detail === 0 and must always stay usable.
+    if (suppressHubClick.current && event.detail !== 0) {
+      event.preventDefault();
+      suppressHubClick.current = false;
+      return;
+    }
+    action();
+  }
+
+  const hubPointerHandlers = {
+    onPointerDown: beginHubPress,
+    onPointerMove: moveHubPress,
+    onPointerUp: endHubPress,
+    onPointerCancel: endHubPress
+  };
+
   const canDrag = allowRearrange && !busy && !groupCreation && !contextMenu && buttons.length > 0;
 
   function coordinate(event: ReactPointerEvent<SVGSVGElement>) {
@@ -368,16 +424,22 @@ export default function RadialWheel({
       )}
 
       {isSubmenu ? (
-        <button className="wheel-center" type="button" onClick={onBack} disabled={busy} aria-label="Back to main Kreis">
+        <button className="wheel-center" type="button" {...hubPointerHandlers}
+          onClick={event => clickHub(event, onBack)} disabled={busy}
+          aria-label="Back to parent Kreis, or drag the hub to move Kreis">
           <ArrowLeft size={28} strokeWidth={1.8} aria-hidden="true" />
           <span className="wheel-center-name">BACK</span>
           <span className="sub-context">{submenuTitle}</span>
+          <span className="wheel-hub-hint" aria-hidden="true">Drag to move</span>
         </button>
       ) : (
-        <button className="wheel-center" type="button" onClick={onSettings} disabled={busy} aria-label="Open Kreis settings">
+        <button className="wheel-center" type="button" {...hubPointerHandlers}
+          onClick={event => clickHub(event, onSettings)} disabled={busy}
+          aria-label="Open Kreis settings, or drag the hub to move Kreis">
           <Settings2 size={26} strokeWidth={1.7} aria-hidden="true" />
           <span className="wheel-center-name">KREIS</span>
           <span className="wheel-center-description">Settings</span>
+          <span className="wheel-hub-hint" aria-hidden="true">Drag to move</span>
         </button>
       )}
 

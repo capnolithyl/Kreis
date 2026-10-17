@@ -12,7 +12,7 @@ Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeS
 - **Shortcuts:** Launch or focus running Windows applications, open folders in File Explorer, and open or focus matching Vivaldi browser tabs.
 - **Groups:** Create nested groups to organize shortcuts into child Kreise. Each configured Kreis currently supports **up to 12 direct slices**.
 - **Choose the right window or tab:** If multiple application windows or browser tabs match, Kreis can display a selection Kreis. Browser matches can be narrowed by URL and an optional tab-title filter; app matches can use a window-title filter.
-- **Rearrange in place:** Drag slices to reorder them, drop a shortcut onto another to create a group, or drop onto a group to move it inside. The center of a child Kreis lets you move a slice up one level. Changes can be undone.
+- **Move or rearrange:** Drag the **hub** to reposition the whole Kreis on-screen, or drag individual slices to reorder and group them. The center of a child Kreis also acts as a drop target to move a slice up one level. Changes can be undone.
 - **Right-click actions:** Rename, change icon or color, move, duplicate, copy a target, or delete a slice without navigating to Settings. Group deletion preserves its contents by moving them to the parent, provided there is space.
 - **Appearance:** Choose slice icons and colors, and adjust font and label sizes.
 - **Optional context menus:** Add shortcuts from File Explorer folders, `.exe` files and `.lnk` shortcuts, or from webpage and link context menus in the companion browser extension.
@@ -58,10 +58,10 @@ To nest a group, set its **Parent group** (or the shortcut's **Placement**). The
 - **Left-click** a slice to activate it. If it represents a group, its child Kreis opens in place.
 - **Drag** a slice near another slice's edge to reorder it, onto a group to move it there, or onto another shortcut to create a group. A child Kreis's hub can act as a drop target to move a slice up one level.
 - **Right-click** a configured slice, or press **Shift+F10** while it has keyboard focus, to open the custom context menu. The wheel's Change color action uses an embedded palette, shade selector, hue slider, and hex input.
-- Use the **hub** to open Settings from the main Kreis or return to the parent Kreis. **Backspace** goes back one level; **Escape** closes the launcher.
+- **Click** the hub to open Settings from the main Kreis or return to the parent Kreis. **Hold and drag** the hub to move the entire launcher without rearranging any slices. Placement is temporary; the next opening is cursor-centered again. **Backspace** goes back one level; **Escape** closes the launcher.
 - When a browser shortcut matches multiple tabs, select an existing tab from the result Kreis or choose **New tab**. Application shortcuts with multiple matching windows show a similar picker.
 
-Dragging the entire Kreis by its hub and selecting slices with number keys are **planned**, not implemented.
+Number-key selection of slices is **planned**, not implemented.
 
 ## Browser companion (Vivaldi)
 
@@ -121,7 +121,7 @@ The next milestones are **plans**, not released features.
 
 | Target | Planned improvements |
 | --- | --- |
-| **0.11.0 · Launcher usability** | Neutral README and starter shortcuts; drag the entire Kreis by its hub without affecting slice drag-and-drop; numbered Quick Keys using **1–9 and 0**; transition from 12 to 10 slices without losing existing entries. |
+| **0.11.0 · Launcher usability** | Neutral starter shortcuts; numbered Quick Keys using **1–9 and 0**; transition from 12 to 10 slices without losing existing entries. Hub dragging shipped early in **0.10.2**. |
 | **0.12.0 · Browser and profile management** | Support additional Chromium-based browsers; add, rename, and remove profiles; separate browser identity from profile identity; assign shortcuts to individual browser/profile combinations; handle deletion without breaking shortcuts. |
 | **Later / under consideration** | Browser/profile auto-detection, improved keyboard accessibility, gesture navigation, and easier distribution/update options. |
 
