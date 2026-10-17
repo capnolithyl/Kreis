@@ -11,3 +11,11 @@ export function sliceIndexForKey(key, itemCount) {
   const index = key === '0' ? 9 : /^[1-9]$/.test(key) ? Number(key) - 1 : -1;
   return index >= 0 && index < Math.min(itemCount, 10) ? index : null;
 }
+
+/** The hub uses the physical backquote key on US keyboards. Falling back
+ * to the produced character also supports layouts reporting a different
+ * KeyboardEvent.code for a literal backtick.
+ */
+export function isHubQuickKey(key, code) {
+  return code === 'Backquote' || key === '`';
+}

@@ -4,7 +4,7 @@
 
 Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeScript. Browser-tab integration currently uses an optional unpacked Chromium extension configured for **Vivaldi**.
 
-> **Status:** Active development. The documentation below describes Kreis **0.11.0**. Planned changes are tracked in the [roadmap](ROADMAP.md).
+> **Status:** Active development. The documentation below describes Kreis **0.11.1**. Planned changes are tracked in the [roadmap](ROADMAP.md).
 
 ## Features
 
@@ -14,7 +14,7 @@ Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeS
 - **Choose the right window or tab:** If multiple application windows or browser tabs match, Kreis can display a selection Kreis. Browser matches can be narrowed by URL and an optional tab-title filter; app matches can use a window-title filter.
 - **Move or rearrange:** Drag the **hub** to reposition the whole Kreis on-screen, or drag individual slices to reorder and group them. The center of a child Kreis also acts as a drop target to move a slice up one level. Changes can be undone.
 - **Right-click actions:** Rename, change icon or color, move, duplicate, copy a target, or delete a slice without navigating to Settings. Group deletion preserves its contents by moving them to the parent, provided there is space.
-- **Quick Keys:** Every slice up to the tenth has a number badge. Press **1–9** for slices 1–9, or **0** for slice 10, on the currently open Kreis. Numbers also work in nested groups and tab/window pickers.
+- **Quick Keys:** Every slice up to the tenth displays a large translucent background numeral. Press **1–9** for slices 1–9, or **0** for slice 10, on the currently open Kreis. Numbers also work in nested groups and tab/window pickers.
 - **Appearance:** Choose slice icons and colors, and adjust font and label sizes.
 - **Optional context menus:** Add shortcuts from File Explorer folders, `.exe` files and `.lnk` shortcuts, or from webpage and link context menus in the companion browser extension.
 - **Local configuration:** Settings and shortcuts are saved locally; no Kreis account is required.
@@ -29,7 +29,7 @@ Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeS
 | **Slice** | A selectable segment around the ring. |
 | **Shortcut** | A slice that targets an application, folder, or webpage. |
 | **Group** | A slice that opens another Kreis; groups can contain nested groups. |
-| **Hub** | The central control for Settings or returning to the parent Kreis. |
+| **Hub** | The central control for Settings or returning to the parent Kreis; also activated by the backtick (`) key. |
 | **Ring** | The circular arrangement of slices around the hub. |
 | **Quick Key** | The number assigned to a slice (1–9, then 0 for the tenth) for keyboard activation. |
 
@@ -58,8 +58,9 @@ To nest a group, set its **Parent group** (or the shortcut's **Placement**). The
 
 - **Left-click** a slice to activate it. If it represents a group, its child Kreis opens in place.
 - **Drag** a slice near another slice's edge to reorder it, onto a group to move it there, or onto another shortcut to create a group. A child Kreis's hub can act as a drop target to move a slice up one level.
-- **Press 1–9** to activate one of the first nine visible slices, or **0** for the tenth. The assigned number follows the displayed order, including after reordering and in child Kreise. Keys are ignored while typing or using dialogs. For older 11/12-slice layouts, extra slices remain mouse-accessible until you reorganize them.
+- **Press 1–9** to activate one of the first nine visible slices, or **0** for the tenth. The large translucent numeral behind each icon and label indicates its key. The assigned number follows the displayed order, including after reordering and in child Kreise. Keys are ignored while typing or using dialogs. For older 11/12-slice layouts, extra slices remain mouse-accessible until you reorganize them.
 - **Right-click** a configured slice, or press **Shift+F10** while it has keyboard focus, to open the custom context menu. The wheel's Change color action uses an embedded palette, shade selector, hue slider, and hex input.
+- **Press the backtick key (`)** to activate the hub: Settings on the Main Kreis, or Back on any child Kreis. The hub shows this key as a reminder.
 - **Click** the hub to open Settings from the main Kreis or return to the parent Kreis. **Hold and drag** the hub to move the entire launcher without rearranging any slices. Placement is temporary; the next opening is cursor-centered again. **Backspace** goes back one level; **Escape** closes the launcher.
 - When a browser shortcut matches multiple tabs, select an existing tab from the result Kreis or choose **New tab**. Application shortcuts with multiple matching windows show a similar picker.
 

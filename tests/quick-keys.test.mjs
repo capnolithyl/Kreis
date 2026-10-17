@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { quickKeyForIndex, sliceIndexForKey } from '../src/quickKeys.mjs';
+import { quickKeyForIndex, sliceIndexForKey, isHubQuickKey } from '../src/quickKeys.mjs';
 
 test('assigns 1–9 and 0 to first ten displayed slices', () => {
   const keys = Array.from({length: 10}, (_, i) => quickKeyForIndex(i));
@@ -25,4 +25,13 @@ test('unknown keys and keys without corresponding slices do nothing', () => {
   assert.equal(sliceIndexForKey('5',3), null);
   assert.equal(sliceIndexForKey('1',0), null);
   assert.equal(sliceIndexForKey('1',NaN), null);
+});
+
+test('backtick selects the hub for either the physical key or character', () => {
+  assert.equal(isHubQuickKey('`', 'Unidentified'), true);
+  assert.equal(isHubQuickKey('Dead', 'Backquote'), true);
+  assert.equal(isHubQuickKey('`', 'Backquote'), true);
+  assert.equal(isHubQuickKey('0', 'Digit0'), false);
+  assert.equal(isHubQuickKey('1', 'Digit1'), false);
+  assert.equal(isHubQuickKey('Backspace', 'Backspace'), false);
 });
