@@ -1,252 +1,136 @@
 # Kreis
 
-Kreis is a Windows tray utility that shows a **cursor-centered radial launcher** and can focus running Windows applications or activate existing tabs in Vivaldi's **Work** and **Personal** profiles.
+**Kreis** is a keyboard-accessible radial launcher for Windows. Open it at the mouse cursor, select an application, folder, or browser tab, and get back to what you were doing.
 
-Built with **Tauri 2 + Rust + React + TypeScript**. The browser companion is an unpacked **Manifest V3 Chromium extension**. Both live in this one repository.
+Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeScript. Browser-tab integration currently uses an optional unpacked Chromium extension configured for **Vivaldi**.
 
-## What Kreis does
+> **Status:** Active development. The documentation below describes Kreis **0.10.1**. Planned changes are tracked in the [roadmap](ROADMAP.md).
 
-- Starts hidden in the Windows tray and shows a round menu around the cursor.
-- Registers **Ctrl+Space** by default, falling back to **Ctrl+Alt+Space** if unavailable.
-- Right-click the tray icon for Open Kreis, Settings, or Quit; left-click opens the wheel.
-- Add/edit/reorder/remove shortcuts and groups, stored locally. Each wheel can display up to 12 shortcuts.
-- Group related items into nested sub-Kreise (for example **Work → IHM** or **Personal → Runagaldr**). Each group may contain other groups, browser/app shortcuts, and folder shortcuts.
-- When a desktop app such as VS Code has multiple visible windows, choose the exact workspace window by its Windows title. One window focuses immediately; zero windows use the existing launch fallback.
-- Focus an existing Windows app window by executable name, or launch it when not running.
-- Via the paired Vivaldi extension, find an existing URL, activate its tab, focus its window, or open a new tab in the correct Vivaldi profile.
-- Without an extension connection, opens links in the **system default browser** (cannot guarantee profile selection).
-- For browser shortcuts with **more than one matching tab**, replaces the main wheel with a **sub-Kreis** displaying real tab titles. One match focuses directly; zero matches open the configured URL.
-- Sub-Kreis has **Back** in the center, **New tab** as an outer choice, and seven existing tabs per page. Paginate for more; Escape closes Kreis.
+## Features
 
-## Drag-and-drop on the actual Kreis (0.8.0)
+- **Quick access:** Press `Ctrl+Space` to show a cursor-centered Kreis. If that hotkey is unavailable, Kreis tries `Ctrl+Alt+Space`. Change it under Settings → Hotkey.
+- **Shortcuts:** Launch or focus running Windows applications, open folders in File Explorer, and open or focus matching Vivaldi browser tabs.
+- **Groups:** Create nested groups to organize shortcuts into child Kreise. Each configured Kreis currently supports **up to 12 direct slices**.
+- **Choose the right window or tab:** If multiple application windows or browser tabs match, Kreis can display a selection Kreis. Browser matches can be narrowed by URL and an optional tab-title filter; app matches can use a window-title filter.
+- **Rearrange in place:** Drag slices to reorder them, drop a shortcut onto another to create a group, or drop onto a group to move it inside. The center of a child Kreis lets you move a slice up one level. Changes can be undone.
+- **Right-click actions:** Rename, change icon or color, move, duplicate, copy a target, or delete a slice without navigating to Settings. Group deletion preserves its contents by moving them to the parent, provided there is space.
+- **Appearance:** Choose slice icons and colors, and adjust font and label sizes.
+- **Optional context menus:** Add shortcuts from File Explorer folders, `.exe` files and `.lnk` shortcuts, or from webpage and link context menus in the companion browser extension.
+- **Local configuration:** Settings and shortcuts are saved locally; no Kreis account is required.
 
-You can now arrange shortcuts **directly inside the radial Kreis** without opening Settings. Press and hold a segment, then drag it to another segment:
+## Terminology
 
-- Drop near the **left/leading angular edge** to move **before** that segment in clockwise order.
-- Drop near the **right/trailing angular edge** to move **after** it.
-- Drop in the **middle of a group** to move your shortcut (or whole subgroup) inside it.
-- Drop in the **middle of another shortcut** to create a **new group containing both**. Kreis asks for the group's name in a small inline confirmation, then replaces the target segment with the group.
-- In a sub-Kreis, drop onto its **center Back circle** to lift an item **one level up**. Use this to move between separate project groups.
+| Term | Meaning |
+| --- | --- |
+| **Kreis** | One radial menu, or the application as a whole when used as a product name. |
+| **Main Kreis** | The top-level launcher. |
+| **Child Kreis / Sub-Kreis** | A secondary radial menu opened from a group or a tab/window selection. |
+| **Slice** | A selectable segment around the ring. |
+| **Shortcut** | A slice that targets an application, folder, or webpage. |
+| **Group** | A slice that opens another Kreis; groups can contain nested groups. |
+| **Hub** | The central control for Settings or returning to the parent Kreis. |
+| **Ring** | The circular arrangement of slices around the hub. |
+| **Quick Key** | A planned number-key shortcut that activates a slice (not yet available). |
 
-Wedges highlight the chosen drop target and show the intended action before release. A brief message offers **Undo** after a successful change. Circular parent references, missing shortcuts and 13th entries are rejected without modifying the saved arrangement. Invalid/self drops do nothing.
+A group is the *entry* that opens a child Kreis, not the child Kreis itself.
 
-Drag editing is enabled only for configured launcher and group wheels, **not** browser-tab, application-window or Settings wheels. Short clicks still launch shortcuts, and the up/down arrows and parent selectors remain in **Settings → Shortcuts & Groups** for keyboard-accessible editing.
+## Getting started
 
-Changes save automatically to the local Kreis settings store and persist on restart. The Vivaldi extension is unchanged.
+### Install Kreis on Windows
 
-## Nested group wheels (0.7.0)
+1. Open [GitHub Actions → Build Windows installer](https://github.com/capnolithyl/Kreis/actions/workflows/windows-installer.yml).
+2. Open a successful run on `main` and download the **Kreis-Windows-installer** artifact.
+3. Extract the ZIP and run the `Kreis_<version>_x64-setup.exe` installer.
+4. Launch Kreis, then press **Ctrl+Space** or open it from the system tray.
 
-Kreis groups can now contain **other groups** at any depth, without changing or deleting the shortcuts already saved. A possible setup is:
+GitHub Actions artifacts are retained for **7 days**. The Windows installer is not currently code-signed, and installing a newer build does not automatically update running copies. Exit Kreis from the tray before installing a replacement.
 
-```text
-Main Kreis
-├─ Work
-│  ├─ IHM
-│  │  ├─ Frontend (Vivaldi tabs)
-│  │  ├─ Backend (Vivaldi tabs)
-│  │  └─ VS Code (matching app windows)
-│  └─ Archdiocese of Baltimore
-└─ Personal
-   ├─ Runagaldr
-   │  ├─ Dashboard
-   │  └─ VS Code
-   └─ Kreis
-```
+### Add shortcuts and groups
 
-To build this from your existing IHM setup, create a new **Work** group under the main Kreis. Edit the current **IHM** group and set **Parent group → Work**. You do not need to recreate any shortcuts: everything inside IHM moves with it. Add Baltimore as another group under Work; repeat with Personal, Runagaldr, and Kreis.
+Open **Settings → Shortcuts & Groups** from the hub or tray menu. You can add browser shortcuts, Windows applications, Windows folders, and groups. A browser shortcut needs a full HTTP(S) URL. An application can use an executable name or path; a folder can use an absolute directory or a Windows known-folder reference such as `shell:Downloads`.
 
-**Settings → Shortcuts & Groups** displays a nested outline. The **+** button next to a group creates a subgroup directly inside it. Any group's **Parent group** selector shows the hierarchy and excludes the group itself and all its descendants, preventing circular references. Each individual wheel holds up to **12 direct items**, including subgroups; descendants do not count against their ancestors' 12-item limit.
+To nest a group, set its **Parent group** (or the shortcut's **Placement**). The Settings outline and the in-wheel drag-and-drop actions both support nested groups. A parent group can hold up to 12 direct entries regardless of how many are inside its child groups.
 
-When you delete a group, its *direct* contents move up **one level** to the deleted group's parent. Deleting Work, for example, moves IHM and Baltimore to Main while retaining IHM's nested shortcuts. If the destination would exceed 12 items, Kreis rejects the deletion instead of losing anything. The center Back button and Backspace return one wheel at a time, from any depth; Escape closes the launcher.
+**Existing settings are preserved when updating.** Generic starter shortcuts are planned for a future release; the current built-in starter data has not yet been changed.
 
-No Vivaldi extension update is needed, and existing group IDs, shortcut colors, tab matching, and app-window matching continue to work.
+### Work with the wheel
 
-## Visual shortcut appearance picker (0.6.3)
+- **Left-click** a slice to activate it. If it represents a group, its child Kreis opens in place.
+- **Drag** a slice near another slice's edge to reorder it, onto a group to move it there, or onto another shortcut to create a group. A child Kreis's hub can act as a drop target to move a slice up one level.
+- **Right-click** a configured slice, or press **Shift+F10** while it has keyboard focus, to open the custom context menu. The wheel's Change color action uses an embedded palette, shade selector, hue slider, and hex input.
+- Use the **hub** to open Settings from the main Kreis or return to the parent Kreis. **Backspace** goes back one level; **Escape** closes the launcher.
+- When a browser shortcut matches multiple tabs, select an existing tab from the result Kreis or choose **New tab**. Application shortcuts with multiple matching windows show a similar picker.
 
-In **Settings → Shortcuts & Groups**, click Edit on any shortcut or group to find the new appearance controls:
+Dragging the entire Kreis by its hub and selecting slices with number keys are **planned**, not implemented.
 
-- **Icon:** shows the currently selected Lucide icon as a real preview. Click it to open a searchable gallery of every available icon, with icon artwork and names. Changing an icon updates the preview before saving.
-- **Color:** a large, full-size color swatch uses the saved hex value directly, instead of relying on the tiny Windows native color-input thumbnail. Click the swatch to launch the system color picker, or enter a six-digit (or short three-digit) hex code. The accent preview updates while editing. Invalid partial hex values cannot be saved from the text field.
+## Browser companion (Vivaldi)
 
-The dialog scrolls its form internally if the icon gallery needs more room, keeping Save and Cancel visible. Saved icon keys, colors, and the rest of the shortcut format are unchanged. No Vivaldi extension update is needed.
+To focus existing browser tabs rather than just opening URLs:
 
-## Minimized Explorer tab reuse fix (0.6.2)
+1. Start Kreis and find the **pairing key** under **Settings → Connection**.
+2. In Vivaldi, open `vivaldi://extensions`, enable **Developer mode**, choose **Load unpacked**, and select this repository's `extension/` directory.
+3. Open the Kreis extension popup, select **Work** or **Personal**, paste the pairing key, and choose **Save & connect**.
+4. Repeat in the other Vivaldi profile if needed, using the same key but selecting its respective profile name.
+5. Use **Refresh** in Kreis's Connection settings to check the connection.
 
-On Windows 11, Explorer can hide its tab controls from Windows UI Automation while the window is minimized, even though the matching folder remains registered in the Shell. Kreis now restores **only the Explorer window whose Shell folder path already matches the requested folder**, waits briefly for its tab controls, then selects the matching tab. It focuses that existing window rather than creating a duplicate Downloads tab. If the tab cannot be identified safely, it still uses the existing new-tab fallback.
+The companion connects to a token-authenticated WebSocket at `127.0.0.1:43991`. It uses the `tabs` permission to discover tab URLs and titles and does not read page contents. Keep your pairing key private.
 
-To test: open `shell:Downloads` (or your relocated Downloads path), minimize Explorer, then use Kreis's Downloads shortcut. It should restore Explorer on the same tab with no additional tab. Also try a minimized Explorer window with Downloads in a background tab, and confirm that opening an unrelated folder still creates a new tab.
+Currently, Kreis supports **Vivaldi** and two fixed connection labels (**Work** and **Personal**). Other Chromium browsers and user-managed profiles are on the [roadmap](ROADMAP.md). If the companion is disconnected, an unfiltered browser shortcut falls back to opening its URL in the system default browser; that fallback cannot guarantee which browser profile is used.
 
-## Explorer folder reuse fix (0.6.1)
+The extension popup includes **Tab matching diagnostics** for troubleshooting. After changing extension files, reload the unpacked extension from `vivaldi://extensions`.
 
-The default folder shortcut now uses `shell:Downloads`, which resolves Windows' actual Downloads Known Folder, including directories relocated to another drive. `%USERPROFILE%\\Downloads` still means the directory inside the profile and does not follow Windows' redirected Downloads setting.
+## Add to Kreis from outside the app
 
-Kreis now searches for an exact **Shell folder path** instead of using the unreliable File Explorer window caption. On Windows 11, it attempts to select the uniquely named matching Explorer tab using the Windows UI Automation tab controls, including background tabs when recognizable. Ambiguous duplicates still open a new tab rather than switch to an unrelated directory. Explorer keyboard shortcuts are used only for the fallback.
+**File Explorer:** Open **Settings → Integrations** to enable or disable per-user **Add to Kreis** context-menu commands for folders, `.exe` files, and `.lnk` shortcuts. On Windows 11, these commands may appear under **Show more options**. No administrator privileges are required for this opt-in integration.
 
-Existing folder shortcuts retain their saved paths: update yours to `shell:Downloads` or keep your direct `E:\\Users\\marcu\\Downloads` path. No browser extension update is required.
+**Vivaldi:** With the companion extension installed, right-click a link or page and choose **Add link to Kreis** or **Add page to Kreis**. A confirmation picker lets you change the shortcut label and select its destination. The browser action requires a paired connection to Kreis.
 
-## Windows File Explorer folders
+## Development
 
-Add a shortcut in **Settings → Shortcuts & Groups → Add shortcut**, choose **Windows folder**, and enter a directory like `shell:Downloads`, `%OneDrive%\\Documents`, `C:\\Projects\\IHM`, or `~\\Downloads`. Assign it to a project group if useful. The folder must exist and be accessible when opened. Existing browser/app shortcuts remain unchanged.
+Requirements: [Node.js LTS](https://nodejs.org/), [Rust](https://rustup.rs/), and the [Tauri v2 Windows prerequisites](https://v2.tauri.app/start/prerequisites/#windows).
 
-When invoked, Kreis tries, in order:
+    git clone https://github.com/capnolithyl/Kreis.git
+    cd Kreis
+    npm ci
+    npm run tauri dev
 
-1. Find an **already selected / active File Explorer folder tab** matching the exact directory via Windows Shell automation. To avoid accidentally focusing a different Explorer tab, Kreis also verifies the current window caption before reusing it. Windows does **not** expose a reliable public API for selecting arbitrary background Explorer tabs, so hidden background matches are not promised.
-2. If another File Explorer window is running on **Windows 11 22H2+**, activate it and use its native keyboard shortcuts **Ctrl+T**, **Ctrl+L**, type the folder path, and press Enter to navigate in a **new tab**, leaving its previous tab alone.
-3. If File Explorer isn't running, the Windows version lacks Explorer tabs, or Explorer cannot safely receive focus, launch the folder in a **new Explorer window**.
+To produce a local Windows installer:
 
-The native implementation checks the foreground window throughout tab navigation. It **never uses the clipboard** for folder paths and does not change File Explorer's system settings. The tab reuse is a best-effort Windows 11 integration because Microsoft doesn't publish a supported tab-management API; report any Explorer differences with a screenshot and your Windows version. Folder shortcuts are local only and require no Vivaldi extension update.
+    npm run tauri build
 
-## Settings category wheel
+The app lives in `src/` and `src-tauri/`; the unpacked browser companion is in `extension/`. The Windows CI workflows validate frontend code, extension and shortcut tests, the Tauri build, and installer checksums. A push to `main` builds an NSIS installer artifact automatically.
 
-Click the **Settings** button in the center of the main Kreis (or select **Settings** from the tray menu) to open another cursor-centered Kreis. Its categories are:
+### Installer checksums
 
-- **Hotkey:** configure and apply the global keyboard shortcut.
-- **Typography:** choose the wheel font family and text sizes.
-- **Shortcuts & Groups:** add, edit, move and organize launcher entries into groups.
-- **Connection:** view Work and Personal Vivaldi connection status, refresh or copy the pairing key.
+Each installer artifact ZIP contains both the `Kreis_<version>_x64-setup.exe` file and `SHA256SUMS.txt`. You can compare the EXE's SHA-256 hash in PowerShell using `Get-FileHash -Algorithm SHA256`.
 
-Choosing a category opens a focused settings page sized for that category, rather than an all-in-one scrolling screen. Click **Back**, press **Escape**, or use **Back to settings** to return to the settings wheel at its original location. Its center button returns to the main wheel. Closing the settings page via X hides Kreis.
-
-Your existing shortcuts, groups, styles, browser profiles and pairing token are retained. Only the **Windows app** changes; you do not need to update the Vivaldi extension. The settings categories are defined in `src/settingsCategories.ts` for easy addition of future sections.
-
-## Organize shortcuts into groups
-
-Open **Settings → Shortcuts & Groups → Add group** and create a group named **IHM**, choosing a color and icon. Then **Edit** each existing shortcut (Frontend, Backend, Figma, VS Code, ChatGPT), choose **Placement → IHM**, and save. They disappear from the main wheel and appear inside the IHM group, preserving their URLs, profiles and matching modes.
-
-Selecting **IHM → Frontend** still checks all currently open tabs that match the IHM frontend URL: zero opens the configured URL, one focuses directly, and several open a tab-title wheel. Selecting **IHM → VS Code** similarly opens a titled native-window wheel if multiple VS Code windows are open. To target a **specific workspace directly**, edit the IHM VS Code entry and set **Window title contains** to a distinctive part of that VS Code window title, for example `immaculate-heart-of-mary`. Leave it blank for the full app-window picker. If the requested workspace is closed, Kreis shows an error rather than accidentally focusing another project. Back takes you to the previous level, and Escape closes Kreis from any depth.
-
-Groups can be nested at any depth, with at most 12 direct items per wheel. Removing a group moves its immediate members to that group's parent if there is room, preserving all nested descendants. Application windows with closed handles are checked again before focusing and will report an error, not focus a random window.
-
-This release only updates the Windows app; **the existing Vivaldi extension does not need to be reinstalled or re-paired**.
-
-## Browser tab title filtering
-
-To group project-specific ChatGPT conversations, create or edit a **Browser tab** shortcut, set the URL to `https://chatgpt.com/`, choose the correct Vivaldi profile and use **URL path prefix** matching. In **Tab title contains (optional)**, enter `IHM`, then set **Placement → IHM**.
-
-When selecting **IHM → ChatGPT**, Kreis first finds tabs that match the URL in the selected browser profile, then keeps **only** those whose title includes `IHM`, ignoring case. With one match it focuses the tab directly; with multiple matches it shows a titled sub-Kreis. Without a title filter, nothing changes and all URL-matching tabs are offered.
-
-You can rename your ChatGPT conversations to include a project keyword, for example `IHM: Gutenberg blocks` or `IHM: Figma discussion`. The filter uses **the actual browser tab title** reported by Vivaldi, so check that the keyword appears in the tab title. If no matching tab is open, Kreis displays an explanation rather than opening an unrelated chat. If the extension is unavailable, it also reports that filtering cannot run safely.
-
-The filter is entirely inside the Windows app; **no Vivaldi extension update is needed**.
-
-## Wheel appearance
-
-Open Kreis **Settings → Typography** to customize the radial menu without affecting the saved shortcuts or Vivaldi pairing. Choose from installed Windows font families and adjust **Shortcut labels (10–18 px)** and **Center label (13–24 px)**. The live preview updates immediately; click **Apply typography** to save the choice. The same font and sizes are used for nested tab wheels. If a font isn't installed, Kreis falls back to Segoe UI.
-
-The wheel now opens with a slower, staggered spin-up (roughly 0.7–0.9 seconds) and has no gaps between shortcut wedges. Windows' **Reduce motion** preference is respected.
-
-This version only changes the **Windows app**, so existing unpacked Vivaldi extensions do not need an update.
-
-## Local Windows development
-
-Install [Node.js LTS](https://nodejs.org/), [Rust](https://rustup.rs/) and [Tauri Windows prerequisites](https://v2.tauri.app/start/prerequisites/#windows) (WebView2 and C++ build tools).
-
-```powershell
-git clone https://github.com/capnolithyl/Kreis.git
-cd Kreis
-npm install
-npm run tauri dev
-```
-
-Build an NSIS installer locally with `npm run tauri build` on Windows. Pull-request CI validates the complete Windows build, browser extension and title-filter tests without keeping installer artifacts.
-
-**Automatically on merge:** every push to `main` (including merging a pull request) triggers **Actions → Build Windows installer**. Wait for the workflow to finish, open its run, and download the **Kreis-Windows-installer** artifact. Extract the ZIP to get the Windows `.exe` installer, then install it manually. Artifacts are retained for **one day** to minimize storage usage.
-
-The installer workflow can still be started manually from **Actions → Build Windows installer → Run workflow**. CI's full Windows build is limited to pull requests or explicit manual checks, avoiding a second redundant full compilation on each `main` push. Building an installer does not automatically update installed copies of Kreis.
-
-## Connect Vivaldi
-
-1. Run Kreis and open **Settings** from the center of the wheel or tray menu.
-2. Copy the **pairing key** shown in Browser connection.
-3. In your **Work** Vivaldi profile, visit `vivaldi://extensions`, enable Developer mode, select **Load unpacked**, and select this repo's `extension` folder.
-4. Click the Kreis extension icon, select **Work**, paste the key, and save.
-5. Repeat installation in **Personal**, selecting **Personal**. Both use the same pairing key.
-6. In Kreis Settings, click **Refresh** to confirm profile connections.
-
-The companion connects only to `127.0.0.1:43991` through a token-authenticated WebSocket. The Windows app rejects browser webpage origins. The key is stored in the local app data directory; the extension stores its copy in its own browser profile.
-
-## Shortcuts and entries
-
-The default shortcut `Control+Space` is not globally reserved by Windows, but other tools (especially IMEs or launchers) may claim it. Kreis detects a failure and uses `Control+Alt+Space`. You can specify another combination in Settings. To switch browser tabs, select whether the URL must match exactly (excluding fragments), by path prefix, or as a whole website excluding WordPress admin. Use **website excluding /wp-admin/** for your WordPress frontend so it can focus any public-facing page without accidentally switching to the admin.
-
-The provided IHM / Figma entries are **sample shortcuts**; edit or delete them to suit your own projects. Browser tab switching requires the extension. Windows executable launching needs an executable on PATH or a full `.exe` path.
-
-## Nested wheels and multiple browser tabs
-
-1. Add a browser entry such as **ChatGPT** with URL `https://chatgpt.com/`, **Work** or **Personal** profile, and **URL path prefix** match mode. A root URL matches the whole website; a deeper URL (like `/wp-admin/`) groups only that branch.
-2. Open at least two matching tabs in that same Vivaldi profile, in any windows, stacks, or workspaces.
-3. Press the global shortcut, select the browser entry, and Kreis shows a sub-wheel with tab titles. Selecting one focuses that **exact tab** by ID. The main wheel is replaced in-place.
-4. Select **Back** in the center to return, **New tab** to deliberately create another tab, or **Escape** to hide Kreis. Each sub-wheel shows up to seven tabs at once plus New tab, with page navigation if needed.
-
-The browser tab discovery is scoped to the selected Vivaldi profile. If the companion hasn't been updated or disconnects, Kreis falls back to the original browser shortcut action, after a short timeout.
-
-**Updating:** This feature requires both the updated **Windows app** and the updated **browser extension**. After merging, download the automatically generated installer from **Actions → Build Windows installer**, install it, update the unpacked `extension/` folder, and click **Reload** in `vivaldi://extensions` in both profiles. Your pairing key and saved shortcuts are preserved.
-
-## Debugging a tab that opens twice
-
-After clicking an entry in Kreis, open the **Kreis extension popup** in that Vivaldi profile. The new **Tab matching diagnostics** section reports how many tabs the browser exposes, how many have readable URLs, and whether the shortcut matched its host or path. Clicking **Scan tabs now** refreshes the inventory. Only hostnames and paths appear in the report, not query strings or the pairing key.
-
-The companion extension uses ES-module service workers starting with v0.1.1. After updating a local checkout or extracted ZIP, visit `vivaldi://extensions` in **both** profiles and hit **Reload** on the Kreis extension. No reinstall of the Windows app is needed for extension-only changes.
+A matching hash confirms that the extracted installer agrees with its checksum manifest. It does **not** replace code signing, publisher verification, or malware scanning. This project commits its npm and Cargo lockfiles and uses pinned CI tool versions to improve build repeatability.
 
 ## Current limitations
 
-- Windows only; the main wheel and each group support up to 12 configured entries. Tab/window result wheels support pagination.
-- The menu is click-to-select; flick-to-release gesture navigation is planned for later.
-- The bridge currently supports one connection per profile name. Duplicate `Work` labels override each other; use one copy per profile.
-- A browser that is closed or has a suspended extension causes system-default-browser fallback.
-- Some elevated desktop applications cannot be focused by a non-elevated Kreis process because of Windows foreground restrictions.
-- Startup launch, drag/drop ordering, automatic grouping suggestions, and saved ultrawide workspaces are future enhancements.
+- Windows only; the launcher currently permits **12** direct slices per configured Kreis.
+- Vivaldi is the only tested browser integration, with fixed Work/Personal profile labels.
+- Native application focusing and File Explorer tab reuse depend on Windows behavior and may fall back to opening a new instance or tab when a safe existing match cannot be identified.
+- A `.lnk` shortcut opens through Windows Shell and may not identify an already-running application for focus.
+- File Explorer context-menu integration is opt-in and does not extend to every Start menu or taskbar right-click menu.
+- Numbered Quick Keys, dragging the whole Kreis by its hub, and customizable browser profiles are not implemented yet.
 
-## Security / privacy
+## Roadmap
 
-No cloud, no account, and no remote telemetry. The pairing key is local. The extension uses the broad `tabs` permission to find URLs across your existing tabs but does **not** read page content. Never publish the pairing key in issues or screenshots.
+The next milestones are **plans**, not released features.
+
+| Target | Planned improvements |
+| --- | --- |
+| **0.11.0 · Launcher usability** | Neutral README and starter shortcuts; drag the entire Kreis by its hub without affecting slice drag-and-drop; numbered Quick Keys using **1–9 and 0**; transition from 12 to 10 slices without losing existing entries. |
+| **0.12.0 · Browser and profile management** | Support additional Chromium-based browsers; add, rename, and remove profiles; separate browser identity from profile identity; assign shortcuts to individual browser/profile combinations; handle deletion without breaking shortcuts. |
+| **Later / under consideration** | Browser/profile auto-detection, improved keyboard accessibility, gesture navigation, and easier distribution/update options. |
+
+See the [detailed roadmap](ROADMAP.md) for scope, compatibility rules, and proposed acceptance criteria.
+
+## Security and privacy
+
+Kreis stores its configuration and browser pairing key locally. The companion communicates over the local loopback address and requires the pairing key. The app does not require an online account or use a cloud service for launcher operation. Avoid sharing pairing keys in screenshots or bug reports.
 
 ## License
 
-No license selected yet. Public repository visibility does not automatically grant rights to redistribute code.
-
-## Windows build integrity and checksums
-
-Windows installers are built by GitHub Actions from the `main` branch. The **Kreis-Windows-installer** workflow artifact ZIP includes:
-
-- `Kreis_<version>_x64-setup.exe`, the NSIS installer.
-- `SHA256SUMS.txt`, containing the SHA-256 hash of **the installer EXE**, not the containing workflow artifact ZIP.
-
-After extracting the artifact, verify the installer in PowerShell from the extracted folder:
-
-```powershell
-$line = (Get-Content .\SHA256SUMS.txt | Select-Object -First 1).Trim()
-$parts = $line -split ' \*', 2
-if ($parts.Count -ne 2) { throw 'Invalid SHA256SUMS.txt format' }
-$actual = (Get-FileHash -LiteralPath $parts[1] -Algorithm SHA256).Hash
-if ($actual -ine $parts[0]) { throw 'Installer SHA-256 mismatch' }
-Write-Host 'Kreis installer checksum verified.'
-```
-
-A matching checksum detects corruption or a mismatch between the EXE and its manifest, but is **not** the same thing as code signing or a malware-free guarantee. Verify that the archive came from the expected GitHub Actions run.
-
-The repository commits `package-lock.json` and `src-tauri/Cargo.lock`. Both Windows workflows use `npm ci`, check Cargo's `--locked` resolution, and fail if either lockfile changes during the build. The runner image, Node, Rust, and GitHub Actions dependencies are version-pinned for better repeatability. Update lockfiles and toolchain pins intentionally when upgrading dependencies or patching the build environment.
-
-## Add to Kreis from context menus (0.9.0)
-
-**Vivaldi:** Reload the unpacked `extension/` companion in `vivaldi://extensions` after upgrading. Right-click any web link and select **Add link to Kreis**, or right-click a page and choose **Add page to Kreis**. Kreis opens a confirmation screen where you can edit the label, select the Work/Personal profile, and place the shortcut on the main wheel or in any nested group. Links are only sent over the already-paired, local WebSocket connection. If Kreis is temporarily disconnected, one pending browser addition is retained for up to five minutes.
-
-**File Explorer:** Open Kreis → Settings → **Integrations** and select **Enable Explorer context menus** (opt-in). The per-user, reversible Windows registry entries add **Add to Kreis** to folders, `.exe` applications, and `.lnk` desktop/Start Menu shortcuts selected in Explorer. The command opens the same confirmation screen and works when Kreis is already running or starts it when needed. On Windows 11, the traditional registry verb normally appears under **Show more options**. Windows taskbar / Start Menu tiles are **not** Explorer file context menus, so those right-click menus are not covered.
-
-The picker validates the target and refuses any destination with 12 shortcuts. It never silently creates or overwrites shortcuts. `.lnk` app entries use the Windows Shell to open the shortcut; since the underlying executable is not resolved, unlike `.exe` entries these do not automatically focus a previously running app window.
-
-**Remove the integration:** Return to Settings → Integrations → **Disable Explorer context menus**. This removes only Kreis's per-user registry keys. Administrator privileges are not required. Disabling the Vivaldi context menus is done by disabling or removing the companion extension.
-
-## Wedge context menu (0.10.0)
-
-Right-click a saved shortcut or group **directly on the main or nested radial wheel**, or focus it with the keyboard and press **Shift+F10**, to open the native-looking Kreis context menu. This does not launch the item or start a drag. The menu closes if you click outside it or press Escape.
-
-- **Rename**, **Change color**, or **Change icon** without leaving the wheel.
-- **Move to group** to file shortcuts or groups into another nested Kreis, including the main wheel. Cycles and 12-item overflows are rejected.
-- **Duplicate** an individual shortcut beside its original. Group duplication is intentionally excluded to avoid silently copying entire trees.
-- **Copy target** to the clipboard for browser URLs, executable paths, and folders.
-- **Delete shortcut/group** with confirmation. Deleting a group preserves its contents by moving its immediate children up a level. If that would overflow the parent, deletion is blocked.
-
-**Change color** in 0.10.1 uses an embedded palette, hue and shade editor, and hex input. It never opens the native browser/Windows color popup. For advanced target edits, profiles, or URL-matching changes, use Settings → Shortcuts.
-
-Changes are saved to Kreis's existing local store; the usual **Undo** toast can restore the previous wheel. Settings list controls and drag-and-drop behavior stay available. Browser tab-choice wheels and Settings categories intentionally have no shortcut context menu.
+**No license has been selected yet.** Public GitHub visibility does not, by itself, grant permission to redistribute or modify the source code.
