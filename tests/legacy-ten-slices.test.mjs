@@ -19,7 +19,7 @@ test('new 10-slice wheels validate and 11th new slice fails', () => {
   const ten = Array.from({length:10}, (_, i) => shortcut('x'+i));
   assert.equal(validateHierarchy(ten), null);
   assert.match(validateHierarchy([...ten, shortcut('extra')]), /10/);
-  assert.equal(suggestParent([group('g'), ...ten]), undefined); // exactly 11 root entries, no migration
+  assert.equal(suggestParent([group('g'), ...ten]), 'g');
 });
 
 test('legacy 11- and 12-slice groups are preserved during harmless edits', () => {
@@ -64,9 +64,9 @@ test('unrelated edits and deletions still work when a different Kreis is legacy-
 });
 
 test('delete does not lift group contents into a full destination', () => {
-  const previous = [...existing(12), shortcut('child','other')];
-  // Move the group itself under the legacy group: deleting it would have to
-  // lift its one child, taking legacy from 12 to 13.
+  const previous = [...existing(11), shortcut('child1','other'), shortcut('child2','other')];
+  // Move the group itself under the legacy group: deleting it would lift
+  // two children, taking the existing 12-slice Kreis to 13.
   const altered = previous.map(e=>e.id==='other'?{...e,groupId:'legacy'}:e);
   assert.match(removeGroup(altered,'other',10).error, /10/);
 });
