@@ -18,9 +18,17 @@ Built with **Tauri 2 + Rust + React + TypeScript**. The browser companion is an 
 - For browser shortcuts with **more than one matching tab**, replaces the main wheel with a **sub-Kreis** displaying real tab titles. One match focuses directly; zero matches open the configured URL.
 - Sub-Kreis has **Back** in the center, **New tab** as an outer choice, and seven existing tabs per page. Paginate for more; Escape closes Kreis.
 
+## Explorer folder reuse fix (0.6.1)
+
+The default folder shortcut now uses `shell:Downloads`, which resolves Windows' actual Downloads Known Folder, including directories relocated to another drive. `%USERPROFILE%\\Downloads` still means the directory inside the profile and does not follow Windows' redirected Downloads setting.
+
+Kreis now searches for an exact **Shell folder path** instead of using the unreliable File Explorer window caption. On Windows 11, it attempts to select the uniquely named matching Explorer tab using the Windows UI Automation tab controls, including background tabs when recognizable. Ambiguous duplicates still open a new tab rather than switch to an unrelated directory. Explorer keyboard shortcuts are used only for the fallback.
+
+Existing folder shortcuts retain their saved paths: update yours to `shell:Downloads` or keep your direct `E:\\Users\\marcu\\Downloads` path. No browser extension update is required.
+
 ## Windows File Explorer folders
 
-Add a shortcut in **Settings → Shortcuts & Groups → Add shortcut**, choose **Windows folder**, and enter a directory like `%USERPROFILE%\\Downloads`, `%OneDrive%\\Documents`, `C:\\Projects\\IHM`, or `~\\Downloads`. Assign it to a project group if useful. The folder must exist and be accessible when opened. Existing browser/app shortcuts remain unchanged.
+Add a shortcut in **Settings → Shortcuts & Groups → Add shortcut**, choose **Windows folder**, and enter a directory like `shell:Downloads`, `%OneDrive%\\Documents`, `C:\\Projects\\IHM`, or `~\\Downloads`. Assign it to a project group if useful. The folder must exist and be accessible when opened. Existing browser/app shortcuts remain unchanged.
 
 When invoked, Kreis tries, in order:
 
