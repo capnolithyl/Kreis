@@ -530,6 +530,9 @@ export default function App() {
     if (!draft) return;
     const problem = validateEntry(draft);
     if (problem) return setError(problem);
+    if (draft.type === 'browser' && !profileForEntry(draft, settings.browserProfiles)) {
+      return setError('Select a configured browser profile. You can add one under Settings → Connection.');
+    }
     const entry: Entry = {
       ...draft,
       id: draft.id || crypto.randomUUID(),
