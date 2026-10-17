@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as 
 import { wheelDropIntent } from './groupDragDrop.mjs';
 import { type WheelAppearance, wheelFontStack } from './types';
 
-export type WheelContextAction = 'rename' | 'color' | 'icon' | 'details' | 'move' | 'duplicate' | 'copy' | 'delete';
+export type WheelContextAction = 'rename' | 'color' | 'icon' | 'move' | 'duplicate' | 'copy' | 'delete';
 
 export type WheelOption = {
   key: string;
@@ -416,7 +416,6 @@ export default function RadialWheel({
               ['rename', 'Rename', Pencil],
               ['color', 'Change color', Palette],
               ['icon', 'Change icon', Shapes],
-              ['details', 'Edit details', Settings2],
               ['move', 'Move to group', FolderInput],
               ...(!contextButton.isGroup ? [
                 ['duplicate', 'Duplicate', Copy],
