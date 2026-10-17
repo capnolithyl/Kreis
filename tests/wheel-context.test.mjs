@@ -57,7 +57,7 @@ test('deleting a nested group lifts its immediate contents and leaves deeper nes
 test('deleting a group refuses to overflow its parent', () => {
   const entries = [group('a','Parent'), group('b','Group','a'),
     ...Array.from({length: 11}, (_, n) => shortcut('x'+n,'Sibling'+n,'a')),
-    shortcut('nested','Nested','b')];
+    shortcut('nested','Nested','b'), shortcut('nested2','Second nested','b')];
   const result = deleteWheelEntry(entries, 'b');
   assert.match(result.error, /exceeds 12/);
   assert.equal(result.entries, entries);
