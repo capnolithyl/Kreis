@@ -18,6 +18,22 @@ Built with **Tauri 2 + Rust + React + TypeScript**. The browser companion is an 
 - For browser shortcuts with **more than one matching tab**, replaces the main wheel with a **sub-Kreis** displaying real tab titles. One match focuses directly; zero matches open the configured URL.
 - Sub-Kreis has **Back** in the center, **New tab** as an outer choice, and seven existing tabs per page. Paginate for more; Escape closes Kreis.
 
+## Drag-and-drop on the actual Kreis (0.8.0)
+
+You can now arrange shortcuts **directly inside the radial Kreis** without opening Settings. Press and hold a segment, then drag it to another segment:
+
+- Drop near the **left/leading angular edge** to move **before** that segment in clockwise order.
+- Drop near the **right/trailing angular edge** to move **after** it.
+- Drop in the **middle of a group** to move your shortcut (or whole subgroup) inside it.
+- Drop in the **middle of another shortcut** to create a **new group containing both**. Kreis asks for the group's name in a small inline confirmation, then replaces the target segment with the group.
+- In a sub-Kreis, drop onto its **center Back circle** to lift an item **one level up**. Use this to move between separate project groups.
+
+Wedges highlight the chosen drop target and show the intended action before release. A brief message offers **Undo** after a successful change. Circular parent references, missing shortcuts and 13th entries are rejected without modifying the saved arrangement. Invalid/self drops do nothing.
+
+Drag editing is enabled only for configured launcher and group wheels, **not** browser-tab, application-window or Settings wheels. Short clicks still launch shortcuts, and the up/down arrows and parent selectors remain in **Settings → Shortcuts & Groups** for keyboard-accessible editing.
+
+Changes save automatically to the local Kreis settings store and persist on restart. The Vivaldi extension is unchanged.
+
 ## Nested group wheels (0.7.0)
 
 Kreis groups can now contain **other groups** at any depth, without changing or deleting the shortcuts already saved. A possible setup is:
