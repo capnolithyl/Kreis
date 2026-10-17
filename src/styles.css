@@ -30,6 +30,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 
 /* The center remains a real HTML button for pointer and keyboard access. */
 .wheel-center { position: absolute; left: 201px; top: 201px; width: 198px; height: 198px; border-radius: 50%; border: 0; background: transparent; color: #f5f8ff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; text-align: center; animation: center-reveal 550ms cubic-bezier(.16,1,.3,1) both; animation-delay: 130ms; transition: background 170ms ease, box-shadow 170ms ease, transform 170ms ease; }
+.wheel-center { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.wheel-center:active { cursor: grabbing; }
+.wheel-hub-hint { font-size: 10px; font-weight: 550; color: #91accd; letter-spacing: .2px; pointer-events: none; }
+
 .wheel-center:hover, .wheel-center:focus-visible { background: rgba(106, 141, 181, .13); box-shadow: inset 0 0 26px #b7d9fd13; transform: scale(1.035); }
 .wheel-center-name { font-size: var(--wheel-center-size, 16px); font-weight: 800; letter-spacing: 2.2px; }
 .wheel-center-description { font-size: 11px; font-weight: 500; letter-spacing: .3px; color: #b5c5dd; }
