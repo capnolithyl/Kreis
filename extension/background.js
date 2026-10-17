@@ -1,5 +1,6 @@
 /* Kreis browser companion. Runs independently in each Vivaldi profile. */
 import { findMatchingTab, findMatchingTabs, lookupDiagnostics } from './tab-finder.js';
+import { contextMenuPayload } from './context-add.js';
 
 const ENDPOINT = 'ws://127.0.0.1:43991';
 let socket = null;
@@ -38,17 +39,9 @@ async function flushPendingContextAdd() {
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   void (async () => {
-    const url = info.menuItemId === 'kreis-add-link' ? info.linkUrl
-      : info.menuItemId === 'kreis-add-page' ? info.pageUrl : null;
-    if (!url) return;
-    const parsed = new URL(url);
-    if (!['http:', 'https:'].includes(parsed.protocol)) return;
-    const title = info.menuItemId === 'kreis-add-page'
-      ? (tab?.title || parsed.hostname)
-      : parsed.hostname + (parsed.pathname === '/' ? '' : parsed.pathname.split('/').filter(Boolean).at(-1) ? ' · ' + decodeURIComponent(parsed.pathname.split('/').filter(Boolean).at(-1)).slice(0, 60) : '');
-    await chrome.storage.local.set({
-      pendingContextAdd: { url, title: title.slice(0, 100), at: Date.now() }
-    });
+    const request = contextMenuPayload(info, tab);
+    if (!request) return;
+    await chrome.storage.local.set({ pendingContextAdd: request });
     if (authenticated) await flushPendingContextAdd();
     else { setStatus('Waiting for Kreis to connect'); void connect(); }
   })().catch(error => setStatus('Add to Kreis failed: ' + String(error)));
