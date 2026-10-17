@@ -1,6 +1,6 @@
 import { ArrowLeft, Clipboard, Copy, FolderInput, Palette, Pencil, Plus, Settings2, Shapes, Trash2, X } from 'lucide-react';
 import { icons } from './icons';
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { wheelDropIntent } from './groupDragDrop.mjs';
 import { type WheelAppearance, wheelFontStack } from './types';
 
@@ -143,7 +143,7 @@ export default function RadialWheel({
   // Catch Escape before the app-level handler that otherwise closes the launcher.
   useEffect(() => {
     if (!contextMenu) return;
-    const dismiss = (event: globalThis.KeyboardEvent) => {
+    const dismiss = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -227,7 +227,7 @@ export default function RadialWheel({
     return `Move ${dragOver.mode} ${title}`;
   }
 
-  const activateWithKeyboard = (event: KeyboardEvent<SVGGElement>, action: () => void) => {
+  const activateWithKeyboard = (event: ReactKeyboardEvent<SVGGElement>, action: () => void) => {
     if ((event.key === 'Enter' || event.key === ' ') && !busy) {
       event.preventDefault();
       action();
