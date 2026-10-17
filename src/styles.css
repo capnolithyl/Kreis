@@ -134,7 +134,7 @@ input::placeholder { color: #687692; }
 /* Groups nest shortcuts visually in Settings without adding unrelated navigation controls. */
 .section-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 .entry-row--group { background: #23314a; border: 1px solid #465d7a; }
-.entry-row--child { margin-left: 22px; background: #161f30; border-left: 2px solid #536987; border-radius: 0 10px 10px 0; }
+.entry-row--child { margin-left: var(--indent-size, 22px); background: #161f30; border-left: 2px solid #536987; border-radius: 0 10px 10px 0; }
 .entry-row--group .entry-name strong { color: #f2f5ff; }
 .entry-row--child .entry-icon { width: 33px; height: 33px; }
 .setting-section .section-title { flex-wrap: wrap; }
@@ -203,3 +203,12 @@ input::placeholder { color: #687692; }
 @media (prefers-reduced-motion: reduce) {
   .icon-picker-chevron, .icon-picker-option { transition: none; }
 }
+
+/* Nestable project groups share the same radial sub-menu behavior at every level. */
+.entry-row--group.entry-row--child { background: #243450; border-left: 3px solid #8aa7d0; }
+.entry-row--group .entry-icon { border: 1px solid #ffffff29; }
+.entry-row .entry-target { opacity: .78; }
+.entry-row--group .entry-target { color: #a5b7da; font-weight: 650; }
+.entry-row--child .entry-name strong { color: #e0eaff; }
+.entry-actions .add-subgroup { display: inline-grid; place-items: center; color: #cbdcff; border: 1px solid #54739d; }
+.entry-actions .add-subgroup:hover:not(:disabled) { background: #425b7d; }
