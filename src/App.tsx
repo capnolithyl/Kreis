@@ -20,7 +20,7 @@ type WheelLevel =
 const MAX_ITEMS_PER_WHEEL = 12;
 /** Synthetic entry to reuse Back and nested-wheel rendering without saving a settings shortcut. */
 const SETTINGS_ENTRY: Entry = { id: 'kreis-settings', title: 'Settings', type: 'group', target: '', profile: 'Work', match: 'prefix', icon: 'settings', color: '#617cae' };
-const DEFAULT_FOLDER: Entry = { id: '', title: '', type: 'folder', target: '%USERPROFILE%\\Downloads', profile: 'Work', match: 'prefix', icon: 'folder', color: '#c1a062' };
+const DEFAULT_FOLDER: Entry = { id: '', title: '', type: 'folder', target: 'shell:Downloads', profile: 'Work', match: 'prefix', icon: 'folder', color: '#c1a062' };
 const DEFAULT_GROUP: Entry = { id: '', title: '', type: 'group', target: '', profile: 'Work', match: 'prefix', icon: 'folder', color: '#6a8ec2' };
 const DEFAULT_NEW: Entry = { id: '', title: '', type: 'browser', target: 'https://', profile: 'Work', match: 'prefix', icon: 'globe', color: '#6385d7' };
 const wheelSize = 600;
@@ -674,7 +674,7 @@ export default function App() {
                       <label className="wide">{draft.type === 'browser' ? 'Website URL' : draft.type === 'folder' ? 'Folder path' : 'Executable name or full .exe path'}
                         <input value={draft.target}
                           onChange={event => setDraft({...draft, target: event.target.value})}
-                          placeholder={draft.type === 'browser' ? 'https://example.com/' : draft.type === 'folder' ? '%USERPROFILE%\\Downloads' : 'Code.exe'}/>
+                          placeholder={draft.type === 'browser' ? 'https://example.com/' : draft.type === 'folder' ? 'shell:Downloads' : 'Code.exe'}/>
                       </label>
                       {draft.type !== 'folder' && <label className="wide">
                         {draft.type === 'browser' ? 'Tab title contains (optional)' : 'Window title contains (optional)'}
@@ -688,7 +688,7 @@ export default function App() {
                         </small>
                       </label>}
                       {draft.type === 'folder' && (
-                        <p className="helper wide">Kreis focuses an already-open Downloads/other folder when possible, otherwise adds a tab to an existing File Explorer window on Windows 11. If no Explorer window exists, it opens a new one. Supports %USERPROFILE%, %OneDrive%, and ~ paths.</p>
+                        <p className="helper wide">Kreis focuses an already-open Downloads/other folder when possible, otherwise adds a tab to an existing File Explorer window on Windows 11. If no Explorer window exists, it opens a new one. Supports shell:Downloads (including relocated Downloads), absolute paths, environment variables, and ~ paths.</p>
                       )}
                       <label>Placement
                         <select value={draft.groupId || ''}
