@@ -1,6 +1,6 @@
 //! Windows Explorer folder activation. Tabs are not exposed by a public Windows API.
-//! Existing *active* folder tabs are located through Shell.Application, while
-//! new tabs use Explorer's Ctrl+T and address bar, with a safe new-window fallback.
+//! Finds folder paths through Shell.Application, uses Windows UI Automation
+//! to select an unambiguous existing tab, and falls back to Ctrl+T or a new window.
 use std::{
     ffi::{c_void, OsString},
     os::windows::{ffi::{OsStrExt, OsStringExt}, process::CommandExt},
@@ -116,7 +116,7 @@ pub fn resolve_folder(path: &str) -> Result<PathBuf, String> {
     };
     let candidate = Path::new(&path);
     if !candidate.is_absolute() {
-        return Err("Use an absolute folder path, such as C:\\Users\\You\\Downloads or %USERPROFILE%\\Downloads.".into());
+        return Err("Use an absolute folder path, such as E:\\Users\\You\\Downloads, or shell:Downloads.".into());
     }
     let canonical = std::fs::canonicalize(candidate)
         .map_err(|_| format!("The folder does not exist or cannot be accessed: {path}"))?;
