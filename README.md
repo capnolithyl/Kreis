@@ -10,13 +10,40 @@ Built with **Tauri 2 + Rust + React + TypeScript**. The browser companion is an 
 - Registers **Ctrl+Space** by default, falling back to **Ctrl+Alt+Space** if unavailable.
 - Right-click the tray icon for Open Kreis, Settings, or Quit; left-click opens the wheel.
 - Add/edit/reorder/remove shortcuts and groups, stored locally. Each wheel can display up to 12 shortcuts.
-- Group related items (for example **IHM**) into a nested Kreis. Groups contain browser or desktop-app shortcuts, which can themselves open matching-tab or matching-window wheels.
+- Group related items into nested sub-Kreise (for example **Work → IHM** or **Personal → Runagaldr**). Each group may contain other groups, browser/app shortcuts, and folder shortcuts.
 - When a desktop app such as VS Code has multiple visible windows, choose the exact workspace window by its Windows title. One window focuses immediately; zero windows use the existing launch fallback.
 - Focus an existing Windows app window by executable name, or launch it when not running.
 - Via the paired Vivaldi extension, find an existing URL, activate its tab, focus its window, or open a new tab in the correct Vivaldi profile.
 - Without an extension connection, opens links in the **system default browser** (cannot guarantee profile selection).
 - For browser shortcuts with **more than one matching tab**, replaces the main wheel with a **sub-Kreis** displaying real tab titles. One match focuses directly; zero matches open the configured URL.
 - Sub-Kreis has **Back** in the center, **New tab** as an outer choice, and seven existing tabs per page. Paginate for more; Escape closes Kreis.
+
+## Nested group wheels (0.7.0)
+
+Kreis groups can now contain **other groups** at any depth, without changing or deleting the shortcuts already saved. A possible setup is:
+
+```text
+Main Kreis
+├─ Work
+│  ├─ IHM
+│  │  ├─ Frontend (Vivaldi tabs)
+│  │  ├─ Backend (Vivaldi tabs)
+│  │  └─ VS Code (matching app windows)
+│  └─ Archdiocese of Baltimore
+└─ Personal
+   ├─ Runagaldr
+   │  ├─ Dashboard
+   │  └─ VS Code
+   └─ Kreis
+```
+
+To build this from your existing IHM setup, create a new **Work** group under the main Kreis. Edit the current **IHM** group and set **Parent group → Work**. You do not need to recreate any shortcuts: everything inside IHM moves with it. Add Baltimore as another group under Work; repeat with Personal, Runagaldr, and Kreis.
+
+**Settings → Shortcuts & Groups** displays a nested outline. The **+** button next to a group creates a subgroup directly inside it. Any group's **Parent group** selector shows the hierarchy and excludes the group itself and all its descendants, preventing circular references. Each individual wheel holds up to **12 direct items**, including subgroups; descendants do not count against their ancestors' 12-item limit.
+
+When you delete a group, its *direct* contents move up **one level** to the deleted group's parent. Deleting Work, for example, moves IHM and Baltimore to Main while retaining IHM's nested shortcuts. If the destination would exceed 12 items, Kreis rejects the deletion instead of losing anything. The center Back button and Backspace return one wheel at a time, from any depth; Escape closes the launcher.
+
+No Vivaldi extension update is needed, and existing group IDs, shortcut colors, tab matching, and app-window matching continue to work.
 
 ## Visual shortcut appearance picker (0.6.3)
 
@@ -72,7 +99,7 @@ Open **Settings → Shortcuts & Groups → Add group** and create a group named 
 
 Selecting **IHM → Frontend** still checks all currently open tabs that match the IHM frontend URL: zero opens the configured URL, one focuses directly, and several open a tab-title wheel. Selecting **IHM → VS Code** similarly opens a titled native-window wheel if multiple VS Code windows are open. To target a **specific workspace directly**, edit the IHM VS Code entry and set **Window title contains** to a distinctive part of that VS Code window title, for example `immaculate-heart-of-mary`. Leave it blank for the full app-window picker. If the requested workspace is closed, Kreis shows an error rather than accidentally focusing another project. Back takes you to the previous level, and Escape closes Kreis from any depth.
 
-Groups are currently **one level deep** (groups cannot contain other groups), and each level supports at most 12 configurable shortcuts. Removing a group moves its members to the main wheel if there is room; otherwise Kreis asks you to reorganize first rather than deleting shortcuts. Application windows with closed handles are checked again before focusing and will report an error, not focus a random window.
+Groups can be nested at any depth, with at most 12 direct items per wheel. Removing a group moves its immediate members to that group's parent if there is room, preserving all nested descendants. Application windows with closed handles are checked again before focusing and will report an error, not focus a random window.
 
 This release only updates the Windows app; **the existing Vivaldi extension does not need to be reinstalled or re-paired**.
 
