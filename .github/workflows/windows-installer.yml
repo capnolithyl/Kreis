@@ -23,6 +23,8 @@ jobs:
         run: npm run check:extension
       - name: Test browser title filters
         run: npm run check:title-filter
+      - name: Test radial drag and drop
+        run: npm run check:wheel-drag
       - name: Test nested group hierarchy
         run: npm run check:groups
       - name: Validate Explorer tab lookup script syntax

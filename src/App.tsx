@@ -12,6 +12,7 @@ import { filterByTitle } from './titleFilter.mjs';
 import { SETTINGS_CATEGORIES, settingsCategoryTitle, type SettingsCategory } from './settingsCategories';
 import { ColorPicker, IconPicker } from './ShortcutAppearancePicker';
 import { eligibleParentGroups, flattenHierarchy, getChildren, removeGroup, suggestParent, validateHierarchy } from './groupHierarchy.mjs';
+import { dropEntry, type DropMode } from './groupDragDrop.mjs';
 import type { CSSProperties } from 'react';
 
 type WheelLevel =
@@ -57,6 +58,9 @@ export default function App() {
   const busyRef = useRef(false);
   const selectionGeneration = useRef(0);
   const [wheelEpoch, setWheelEpoch] = useState(0);
+  const [pendingGroup, setPendingGroup] = useState<{ sourceId: string; targetId: string; sourceTitle: string; targetTitle: string; name: string } | null>(null);
+  const [wheelFeedback, setWheelFeedback] = useState('');
+  const [undoEntries, setUndoEntries] = useState<Entry[] | null>(null);
 
   const resetWheel = useCallback(() => {
     selectionGeneration.current++;
@@ -66,6 +70,9 @@ export default function App() {
     setLevels([]);
     setTabPage(0);
     setError('');
+    setPendingGroup(null);
+    setWheelFeedback('');
+    setUndoEntries(null);
   }, []);
 
   async function closeLauncher() {
@@ -150,16 +157,17 @@ export default function App() {
       if (event.key === 'Escape') {
         event.preventDefault();
         if (draft) { setDraft(null); return; }
+        if (pendingGroup) { setPendingGroup(null); return; }
         if (screen === 'settings') { void backToSettingsWheel(); return; }
         void closeLauncher();
-      } else if (event.key === 'Backspace' && screen === 'wheel' && levels.length > 0) {
+      } else if (event.key === 'Backspace' && !pendingGroup && screen === 'wheel' && levels.length > 0) {
         event.preventDefault();
         backOneLevel();
       }
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [draft, screen, levels]);
+  }, [draft, pendingGroup, screen, levels]);
 
   /** The main wheel's center and the tray Settings item both open the category wheel. */
   function openSettingsWheel(fromTray = false) {
@@ -416,6 +424,81 @@ export default function App() {
     catch (cause) { setError(String(cause)); }
   }
 
+  /** Drag/drop happens directly on the radial launcher. Settings arrows remain. */
+  async function persistWheelDrop(sourceId: string, targetId: string | null, mode: DropMode,
+    group?: { id: string; title: string }) {
+    if (busyRef.current) return;
+    const source = settings.entries.find(entry => entry.id === sourceId);
+    const target = targetId ? settings.entries.find(entry => entry.id === targetId) : undefined;
+    if (!source) return setError('Shortcut no longer exists.');
+    const parentGroupId = activeLevel?.kind === 'group' ? activeLevel.entry.groupId : undefined;
+    const result = dropEntry(settings.entries, sourceId, targetId, mode, {
+      groupId: group?.id, groupTitle: group?.title, parentGroupId,
+      limit: MAX_ITEMS_PER_WHEEL
+    });
+    if (result.error) return setError(result.error);
+    if (!result.changed) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
+    setWheelFeedback('');
+    try {
+      await persist({ ...settings, entries: result.entries });
+      setUndoEntries(settings.entries);
+      setWheelFeedback(mode === 'combine' ? `Created ${group?.title}`
+        : mode === 'inside' ? `Moved ${source.title} into ${target?.title}`
+        : mode === 'root' ? `Moved ${source.title} up a level`
+        : `Reordered ${source.title}`);
+      setPendingGroup(null);
+    } catch (cause) {
+      setError(String(cause));
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+
+  function dropWheelWedge(sourceId: string, targetId: string | null, mode: DropMode) {
+    if (busyRef.current || pendingGroup) return;
+    if (mode === 'combine') {
+      const source = settings.entries.find(entry => entry.id === sourceId);
+      const target = settings.entries.find(entry => entry.id === targetId);
+      if (!source || !target) return;
+      setError('');
+      setPendingGroup({
+        sourceId, targetId: target.id,
+        sourceTitle: source.title, targetTitle: target.title,
+        name: `${target.title} + ${source.title}`.slice(0, 30)
+      });
+      return;
+    }
+    void persistWheelDrop(sourceId, targetId, mode);
+  }
+
+  async function confirmWheelGroup() {
+    if (!pendingGroup || !pendingGroup.name.trim()) return;
+    await persistWheelDrop(pendingGroup.sourceId, pendingGroup.targetId, 'combine', {
+      id: crypto.randomUUID(), title: pendingGroup.name.trim()
+    });
+  }
+
+  async function undoWheelDrop() {
+    if (!undoEntries || busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      await persist({ ...settings, entries: undoEntries });
+      setUndoEntries(null);
+      setWheelFeedback('Arrangement restored');
+    } catch (cause) {
+      setError(String(cause));
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+
   async function moveEntry(id: string, delta: number) {
     const item = settings.entries.find(entry => entry.id === id);
     if (!item) return;
@@ -479,6 +562,7 @@ export default function App() {
           }))
         : currentOptions.map(entry => ({
             key: entry.id, title: entry.title, color: entry.color, icon: entry.icon,
+            isGroup: entry.type === 'group',
             tooltip: entry.type === 'group' ? `Open ${entry.title} group`
               : `${entry.title} (${entry.type === 'browser' ? entry.profile : entry.type === 'folder' ? 'File Explorer' : 'Windows'})`,
             onSelect: () => void selectEntry(entry)
@@ -511,6 +595,16 @@ export default function App() {
           onBack={backOneLevel}
           onClose={() => void closeLauncher()}
           onPageChange={setTabPage}
+          allowRearrange={!activeLevel || activeLevel.kind === 'group'}
+          allowMoveUp={activeLevel?.kind === 'group'}
+          onDropWedge={dropWheelWedge}
+          groupCreation={pendingGroup}
+          onGroupNameChange={name => setPendingGroup(current => current ? { ...current, name } : null)}
+          onConfirmGroup={() => void confirmWheelGroup()}
+          onCancelGroup={() => setPendingGroup(null)}
+          feedback={wheelFeedback}
+          canUndo={Boolean(undoEntries)}
+          onUndo={() => void undoWheelDrop()}
         />
       ) : (
         <div className="settings-shell">
@@ -520,7 +614,7 @@ export default function App() {
                 aria-label="Back to Settings wheel" title="Back to Settings wheel"><ArrowLeft size={20}/></button>
               <div>
                 <div className="overline">KREIS SETTINGS</div>
-                <h1>{settingsCategoryTitle(settingsSection)} <small>0.7.0</small></h1>
+                <h1>{settingsCategoryTitle(settingsSection)} <small>0.8.0</small></h1>
                 <p>{SETTINGS_CATEGORIES.find(category => category.key === settingsSection)?.description}</p>
               </div>
             </div>
