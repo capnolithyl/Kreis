@@ -43,6 +43,20 @@ function sameGoogleChatAccount(a, b) {
   return current !== undefined && current === expected;
 }
 
+/** ChatGPT sometimes rewrites a project conversation URL (/g/<project>/c/<id>)
+ * to its normal conversation URL (/c/<id>) as it navigates. Match on the
+ * conversation UUID, never on the project or on the whole chatgpt.com site.
+ * This deliberately does not match different conversations or GPT landing pages.
+ */
+function sameChatGPTConversation(a, b) {
+  if (hostname(b.hostname) !== 'chatgpt.com') return false;
+  const pattern = /^\/(?:g\/[^/]+\/)?c\/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})(?:\/|$)/i;
+  const current = a.pathname.match(pattern)?.[1];
+  const expected = b.pathname.match(pattern)?.[1];
+  return current !== undefined && expected !== undefined &&
+    current.toLowerCase() === expected.toLowerCase();
+}
+
 export function matchesUrl(current, target, mode = 'prefix') {
   const a = parseWebUrl(current);
   const b = parseWebUrl(target);
@@ -52,11 +66,12 @@ export function matchesUrl(current, target, mode = 'prefix') {
     return !/^\/(?:wp-admin(?:\/|$)|wp-login\.php(?:\/|$)|wp-json(?:\/|$))/i.test(a.pathname);
   }
   if (mode === 'exact') {
-    return normalizePath(a.pathname) === normalizePath(b.pathname) && a.search === b.search;
+    return sameChatGPTConversation(a, b) ||
+      (normalizePath(a.pathname) === normalizePath(b.pathname) && a.search === b.search);
   }
   if (mode !== 'prefix') return false;
 
-  if (sameFigmaDocument(a, b) || sameGoogleChatAccount(a, b)) return true;
+  if (sameFigmaDocument(a, b) || sameGoogleChatAccount(a, b) || sameChatGPTConversation(a, b)) return true;
 
   const currentPath = normalizePath(a.pathname);
   const expectedPath = normalizePath(b.pathname);
