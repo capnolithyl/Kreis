@@ -36,6 +36,8 @@ jobs:
         run: npm run check:chatgpt-tabs
       - name: Test radial drag and drop
         run: npm run check:wheel-drag
+      - name: Test wheel item context actions
+        run: npm run check:wheel-context
       - name: Test nested group hierarchy
         run: npm run check:groups
       - name: Validate Explorer tab lookup script syntax
