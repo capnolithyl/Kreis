@@ -47,19 +47,19 @@ test('deleting intermediate group preserves children and grandchildren', () => {
 test('deleting group refuses overflow and loses no entries', () => {
   const crowded = [entry('Work'), entry('IHM','group','Work'), ...Array.from({length:11},(_,i)=>entry('S'+i, 'browser','Work')), entry('extra','browser','IHM'), entry('extra2','browser','IHM')];
   const result = removeGroup(crowded, 'IHM');
-  assert.match(result.error, /exceeds 12/);
+  assert.match(result.error, /exceeds 10/);
   assert.equal(result.entries.length, crowded.length);
 });
 
-test('enforces per-level 12 maximum, detects missing parents and duplicates', () => {
+test('enforces per-level 10 maximum, detects missing parents and duplicates', () => {
   const many = [entry('Work'), ...Array.from({length:13},(_,i)=>entry('sub'+i,'group','Work'))];
-  assert.match(validateHierarchy(many), /exceeds 12/);
+  assert.match(validateHierarchy(many), /exceeds 10/);
   assert.match(validateHierarchy([entry('Orphan','browser','missing')]), /no longer exists/);
   assert.match(validateHierarchy([entry('A'),entry('A')]), /unique/);
 });
 
 test('suggests group when root is full, including for subgroups', () => {
-  const allRoot = Array.from({length:12},(_,i)=>entry('G'+i));
+  const allRoot = Array.from({length:10},(_,i)=>entry('G'+i));
   assert.equal(suggestParent(allRoot), 'G0');
   assert.equal(suggestParent([entry('Work')]), undefined);
 });

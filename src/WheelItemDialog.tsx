@@ -5,6 +5,8 @@ import WheelColorPicker from './WheelColorPicker';
 import { eligibleParentGroups, getChildren } from './groupHierarchy.mjs';
 import type { Entry } from './types';
 
+const MAX_ITEMS_PER_WHEEL = 10;
+
 export type WheelEditMode = 'rename' | 'color' | 'icon' | 'move' | 'delete';
 
 type Props = {
@@ -81,11 +83,11 @@ export default function WheelItemDialog({
             Destination
             <select value={draft.groupId || ''}
               onChange={event => setDraft(current => ({ ...current, groupId: event.target.value || undefined }))}>
-              <option value="" disabled={entry.groupId !== undefined && getChildren(entries).length >= 12}>
-                Main Kreis{getChildren(entries).length >= 12 && entry.groupId ? ' (full)' : ''}
+              <option value="" disabled={entry.groupId !== undefined && getChildren(entries).length >= MAX_ITEMS_PER_WHEEL}>
+                Main Kreis{getChildren(entries).length >= MAX_ITEMS_PER_WHEEL && entry.groupId ? ' (full)' : ''}
               </option>
               {placements.map(({ id, title: groupTitle, depth }) => {
-                const full = getChildren(entries, id).length >= 12 && entry.groupId !== id;
+                const full = getChildren(entries, id).length >= MAX_ITEMS_PER_WHEEL && entry.groupId !== id;
                 return <option key={id} value={id} disabled={full}>
                   {`${'　'.repeat(depth)}↳ ${groupTitle}${full ? ' (full)' : ''}`}
                 </option>;

@@ -23,7 +23,7 @@ type WheelLevel =
   | { kind: 'tabs'; entry: Entry; tabs: BrowserTab[] }
   | { kind: 'apps'; entry: Entry; windows: AppWindow[] };
 
-const MAX_ITEMS_PER_WHEEL = 12;
+const MAX_ITEMS_PER_WHEEL = 10;
 /** Synthetic entry to reuse Back and nested-wheel rendering without saving a settings shortcut. */
 const SETTINGS_ENTRY: Entry = { id: 'kreis-settings', title: 'Settings', type: 'group', target: '', profile: 'Work', match: 'prefix', icon: 'settings', color: '#617cae' };
 const DEFAULT_FOLDER: Entry = { id: '', title: '', type: 'folder', target: 'shell:Downloads', profile: 'Work', match: 'prefix', icon: 'folder', color: '#c1a062' };
@@ -199,7 +199,7 @@ export default function App() {
     const validation = validateEntry(entry);
     if (validation) return setError(validation);
     const entries = [...settings.entries, entry];
-    const hierarchyError = validateHierarchy(entries, MAX_ITEMS_PER_WHEEL);
+    const hierarchyError = validateHierarchy(entries, MAX_ITEMS_PER_WHEEL, settings.entries);
     if (hierarchyError) return setError(hierarchyError);
     busyRef.current = true;
     setBusy(true);
@@ -491,7 +491,7 @@ export default function App() {
     const entries = draft.id
       ? settings.entries.map(current => current.id === draft.id ? entry : current)
       : [...settings.entries, entry];
-    const hierarchyError = validateHierarchy(entries, MAX_ITEMS_PER_WHEEL);
+    const hierarchyError = validateHierarchy(entries, MAX_ITEMS_PER_WHEEL, settings.entries);
     if (hierarchyError) return setError(hierarchyError);
     try { await persist({ ...settings, entries }); setDraft(null); setError(''); }
     catch (cause) { setError(String(cause)); }
@@ -778,6 +778,7 @@ export default function App() {
           tabCount={levelCount}
           countLabel={levelCountLabel}
           busy={busy}
+          keyboardDisabled={Boolean(wheelEdit) || Boolean(draft)}
           error={error}
           page={tabPage}
           pageCount={pageCount}
@@ -817,7 +818,7 @@ export default function App() {
                 aria-label="Back to Settings wheel" title="Back to Settings wheel"><ArrowLeft size={20}/></button>
               <div>
                 <div className="overline">KREIS SETTINGS</div>
-                <h1>{settingsCategoryTitle(settingsSection)} <small>0.10.3</small></h1>
+                <h1>{settingsCategoryTitle(settingsSection)} <small>0.11.0</small></h1>
                 <p>{SETTINGS_CATEGORIES.find(category => category.key === settingsSection)?.description}</p>
               </div>
             </div>
@@ -864,7 +865,7 @@ export default function App() {
             </section>}
             {settingsSection === 'shortcuts' && <section className="setting-section">
               <div className="section-title">
-                <h2>Shortcuts and groups <span className="count">{rootEntries.length}/12 main · {settings.entries.length} total</span></h2>
+                <h2>Shortcuts and groups <span className="count">{rootEntries.length}/{MAX_ITEMS_PER_WHEEL} main · {settings.entries.length} total</span></h2>
                 <div className="section-buttons">
                   <button className="secondary" disabled={!canAddToAnyWheel}
                     onClick={() => { setDraft({ ...DEFAULT_GROUP, groupId: defaultNewParent }); setError(''); }}>
@@ -876,7 +877,7 @@ export default function App() {
                   </button>
                 </div>
               </div>
-              <p className="helper">Build your own structure, like Work → IHM → Frontend or Personal → Runagaldr → VS Code. Edit any entry to choose its parent group, or click + on a group to add a subgroup. Each Kreis holds up to 12 items; Back moves up one level.</p>
+              <p className="helper">Organize shortcuts into groups, and nest groups inside other groups. Edit any entry to choose its parent group, or click + on a group to add a subgroup. Each Kreis holds up to 10 items. Older 11/12-slice Kreise stay intact until you reorganize them. Back moves up one level.</p>
               <div className="entry-list">
                 {arrangedEntries.map(({ entry, depth }) => {
                   const Icon = icons[entry.icon] || icons.rocket;

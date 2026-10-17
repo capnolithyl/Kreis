@@ -3,6 +3,7 @@ import { icons } from './icons';
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { wheelDropIntent } from './groupDragDrop.mjs';
 import { passedHubDragThreshold } from './hubDrag.mjs';
+import { quickKeyForIndex, sliceIndexForKey } from './quickKeys.mjs';
 import { type WheelAppearance, wheelFontStack } from './types';
 
 export type WheelContextAction = 'rename' | 'color' | 'icon' | 'move' | 'duplicate' | 'copy' | 'delete';
@@ -31,6 +32,7 @@ type RadialWheelProps = {
   onBack: () => void;
   onSettings: () => void;
   onHubDrag: () => void;
+  keyboardDisabled?: boolean;
   onClose: () => void;
   onPageChange: (page: number) => void;
   allowRearrange?: boolean;
@@ -135,7 +137,7 @@ function labelLines(label: string, count: number, fontSize: number): string[] {
 
 export default function RadialWheel({
   buttons, appearance, submenuTitle, tabCount, countLabel = 'tabs', busy, error, page, pageCount,
-  onBack, onSettings, onHubDrag, onClose, onPageChange, allowRearrange = false,
+  onBack, onSettings, onHubDrag, onClose, onPageChange, keyboardDisabled = false, allowRearrange = false,
   allowMoveUp = false, onDropWedge, onContextAction, groupCreation, onGroupNameChange,
   onConfirmGroup, onCancelGroup, feedback, canUndo, onUndo
 }: RadialWheelProps) {
@@ -155,6 +157,27 @@ export default function RadialWheel({
     document.addEventListener('keydown', dismiss, true);
     return () => document.removeEventListener('keydown', dismiss, true);
   }, [contextMenu]);
+
+  // Numbers work on the currently displayed Kreis only. A dialog, open context
+  // menu, typing field, drag, or modifier combo must never launch a shortcut.
+  useEffect(() => {
+    if (busy || keyboardDisabled || groupCreation || contextMenu) return;
+    const onQuickKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat || event.isComposing ||
+          event.ctrlKey || event.altKey || event.metaKey || event.shiftKey ||
+          dragRef.current || hubPointer.current) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest(
+        'input, textarea, select, [contenteditable], [role="textbox"], [role="dialog"], .wheel-group-overlay'
+      )) return;
+      const index = sliceIndexForKey(event.key, buttons.length);
+      if (index === null) return;
+      event.preventDefault();
+      buttons[index].onSelect();
+    };
+    document.addEventListener('keydown', onQuickKey);
+    return () => document.removeEventListener('keydown', onQuickKey);
+  }, [buttons, busy, keyboardDisabled, contextMenu, groupCreation]);
 
   const [dragOver, setDragOver] = useState<{
     sourceId: string; targetId: string | null;
@@ -319,13 +342,15 @@ export default function RadialWheel({
             const midpoint = -Math.PI / 2 + index * TWO_PI / buttons.length;
             const labelPoint = point(LABEL_RADIUS, midpoint);
             const Icon = button.isNew ? Plus : (icons[button.icon] || icons.rocket);
+            const quickKey = quickKeyForIndex(index);
+            const keyPoint = point(220, midpoint);
             const label = labelLines(button.title, buttons.length, appearance.labelSize);
             return (
               <g
                 key={button.key}
                 role="menuitem"
                 tabIndex={busy ? -1 : 0}
-                aria-label={button.tooltip}
+                aria-label={quickKey ? `Press ${quickKey}: ${button.tooltip}` : button.tooltip}
                 aria-disabled={busy || Boolean(groupCreation)}
                 className={`wheel-segment${dragOver?.sourceId === button.key ? ' is-drag-source' : ''}${dragOver?.targetId === button.key ? ` is-drop-target is-drop-${dragOver.mode}` : ''}`}
                 style={{ '--accent': button.color, '--segment-index': index } as CSSProperties}
@@ -370,7 +395,7 @@ export default function RadialWheel({
                   }
                 }}
               >
-                <title>{button.tooltip}</title>
+                <title>{quickKey ? `${quickKey} · ${button.tooltip}` : button.tooltip}</title>
                 <path d={wedgePath(midpoint, buttons.length)} className="wheel-segment-base" />
                 <path d={wedgePath(midpoint, buttons.length)} className="wheel-segment-tint" />
                 <g className="wheel-segment-content" pointerEvents="none">
@@ -395,6 +420,13 @@ export default function RadialWheel({
                       </tspan>
                     ))}
                   </text>
+                  {quickKey && (
+                    <g className="wheel-quick-key" aria-hidden="true">
+                      <circle cx={keyPoint.x} cy={keyPoint.y} r={12} className="wheel-quick-key-circle" />
+                      <text x={keyPoint.x} y={keyPoint.y} className="wheel-quick-key-number"
+                        textAnchor="middle" dominantBaseline="central">{quickKey}</text>
+                    </g>
+                  )}
                 </g>
               </g>
             );

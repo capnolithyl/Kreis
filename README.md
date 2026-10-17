@@ -4,16 +4,17 @@
 
 Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeScript. Browser-tab integration currently uses an optional unpacked Chromium extension configured for **Vivaldi**.
 
-> **Status:** Active development. The documentation below describes Kreis **0.10.1**. Planned changes are tracked in the [roadmap](ROADMAP.md).
+> **Status:** Active development. The documentation below describes Kreis **0.11.0**. Planned changes are tracked in the [roadmap](ROADMAP.md).
 
 ## Features
 
 - **Quick access:** Press `Ctrl+Space` to show a cursor-centered Kreis. If that hotkey is unavailable, Kreis tries `Ctrl+Alt+Space`. Change it under Settings → Hotkey.
 - **Shortcuts:** Launch or focus running Windows applications, open folders in File Explorer, and open or focus matching Vivaldi browser tabs.
-- **Groups:** Create nested groups to organize shortcuts into child Kreise. Each configured Kreis currently supports **up to 12 direct slices**.
+- **Groups:** Create nested groups to organize shortcuts into child Kreise. New Kreise support **up to 10 direct slices**; existing 11/12-slice layouts are preserved.
 - **Choose the right window or tab:** If multiple application windows or browser tabs match, Kreis can display a selection Kreis. Browser matches can be narrowed by URL and an optional tab-title filter; app matches can use a window-title filter.
 - **Move or rearrange:** Drag the **hub** to reposition the whole Kreis on-screen, or drag individual slices to reorder and group them. The center of a child Kreis also acts as a drop target to move a slice up one level. Changes can be undone.
 - **Right-click actions:** Rename, change icon or color, move, duplicate, copy a target, or delete a slice without navigating to Settings. Group deletion preserves its contents by moving them to the parent, provided there is space.
+- **Quick Keys:** Every slice up to the tenth has a number badge. Press **1–9** for slices 1–9, or **0** for slice 10, on the currently open Kreis. Numbers also work in nested groups and tab/window pickers.
 - **Appearance:** Choose slice icons and colors, and adjust font and label sizes.
 - **Optional context menus:** Add shortcuts from File Explorer folders, `.exe` files and `.lnk` shortcuts, or from webpage and link context menus in the companion browser extension.
 - **Local configuration:** Settings and shortcuts are saved locally; no Kreis account is required.
@@ -30,7 +31,7 @@ Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeS
 | **Group** | A slice that opens another Kreis; groups can contain nested groups. |
 | **Hub** | The central control for Settings or returning to the parent Kreis. |
 | **Ring** | The circular arrangement of slices around the hub. |
-| **Quick Key** | A planned number-key shortcut that activates a slice (not yet available). |
+| **Quick Key** | The number assigned to a slice (1–9, then 0 for the tenth) for keyboard activation. |
 
 A group is the *entry* that opens a child Kreis, not the child Kreis itself.
 
@@ -49,7 +50,7 @@ GitHub Actions artifacts are retained for **7 days**. The Windows installer is n
 
 Open **Settings → Shortcuts & Groups** from the hub or tray menu. You can add browser shortcuts, Windows applications, Windows folders, and groups. A browser shortcut needs a full HTTP(S) URL. An application can use an executable name or path; a folder can use an absolute directory or a Windows known-folder reference such as `shell:Downloads`.
 
-To nest a group, set its **Parent group** (or the shortcut's **Placement**). The Settings outline and the in-wheel drag-and-drop actions both support nested groups. A parent group can hold up to 12 direct entries regardless of how many are inside its child groups.
+To nest a group, set its **Parent group** (or the shortcut's **Placement**). The Settings outline and the in-wheel drag-and-drop actions both support nested groups. A parent group can hold up to 10 direct entries regardless of how many are inside its child groups. Older 11/12-slice Kreise remain accessible, editable and reorderable, but cannot gain more slices while over the new limit.
 
 **Existing settings are preserved when updating.** Generic starter shortcuts are planned for a future release; the current built-in starter data has not yet been changed.
 
@@ -57,11 +58,12 @@ To nest a group, set its **Parent group** (or the shortcut's **Placement**). The
 
 - **Left-click** a slice to activate it. If it represents a group, its child Kreis opens in place.
 - **Drag** a slice near another slice's edge to reorder it, onto a group to move it there, or onto another shortcut to create a group. A child Kreis's hub can act as a drop target to move a slice up one level.
+- **Press 1–9** to activate one of the first nine visible slices, or **0** for the tenth. The assigned number follows the displayed order, including after reordering and in child Kreise. Keys are ignored while typing or using dialogs. For older 11/12-slice layouts, extra slices remain mouse-accessible until you reorganize them.
 - **Right-click** a configured slice, or press **Shift+F10** while it has keyboard focus, to open the custom context menu. The wheel's Change color action uses an embedded palette, shade selector, hue slider, and hex input.
 - **Click** the hub to open Settings from the main Kreis or return to the parent Kreis. **Hold and drag** the hub to move the entire launcher without rearranging any slices. Placement is temporary; the next opening is cursor-centered again. **Backspace** goes back one level; **Escape** closes the launcher.
 - When a browser shortcut matches multiple tabs, select an existing tab from the result Kreis or choose **New tab**. Application shortcuts with multiple matching windows show a similar picker.
 
-Number-key selection of slices is **planned**, not implemented.
+The optional generic starter shortcuts are still planned; existing saved layouts are not overwritten by upgrades.
 
 ## Browser companion (Vivaldi)
 
@@ -108,12 +110,12 @@ A matching hash confirms that the extracted installer agrees with its checksum m
 
 ## Current limitations
 
-- Windows only; the launcher currently permits **12** direct slices per configured Kreis.
+- Windows only; new layouts permit **10** direct slices per configured Kreis. Older 11/12-slice layouts remain intact, and their extra slices remain clickable.
 - Vivaldi is the only tested browser integration, with fixed Work/Personal profile labels.
 - Native application focusing and File Explorer tab reuse depend on Windows behavior and may fall back to opening a new instance or tab when a safe existing match cannot be identified.
 - A `.lnk` shortcut opens through Windows Shell and may not identify an already-running application for focus.
 - File Explorer context-menu integration is opt-in and does not extend to every Start menu or taskbar right-click menu.
-- Numbered Quick Keys, dragging the whole Kreis by its hub, and customizable browser profiles are not implemented yet.
+- Customizable browser profiles and generic first-run starter shortcuts are not implemented yet.
 
 ## Roadmap
 
@@ -121,7 +123,7 @@ The next milestones are **plans**, not released features.
 
 | Target | Planned improvements |
 | --- | --- |
-| **0.11.0 · Launcher usability** | Neutral starter shortcuts; numbered Quick Keys using **1–9 and 0**; transition from 12 to 10 slices without losing existing entries. Hub dragging shipped early in **0.10.2** and was stabilized in **0.10.3**. |
+| **0.11.0 · Launcher usability** | Numbered Quick Keys using **1–9 and 0** and the safe 10-slice limit are shipped. Generic starter shortcuts remain planned. Hub dragging shipped in **0.10.2** and was stabilized in **0.10.3**. |
 | **0.12.0 · Browser and profile management** | Support additional Chromium-based browsers; add, rename, and remove profiles; separate browser identity from profile identity; assign shortcuts to individual browser/profile combinations; handle deletion without breaking shortcuts. |
 | **Later / under consideration** | Browser/profile auto-detection, improved keyboard accessibility, gesture navigation, and easier distribution/update options. |
 

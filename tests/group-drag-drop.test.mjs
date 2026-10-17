@@ -83,9 +83,10 @@ test('cycle attempts and full destination wheels fail without mutating anything'
     ...Array.from({length:12}, (_, index) => item('s' + index, 'A')),
     item('extra', 'B')];
   const full = dropEntry(crowded, 'extra', 'A', 'inside');
-  assert.match(full.error, /exceeds 12/);
+  assert.match(full.error, /exceeds 10/);
   assert.equal(full.entries, crowded);
-  assert.equal(validateHierarchy(crowded), null);
+  assert.match(validateHierarchy(crowded), /exceeds 10/);
+  assert.equal(validateHierarchy(crowded, 10, crowded), null);
 });
 
 test('unchanged drag does not rewrite saved data', () => {
