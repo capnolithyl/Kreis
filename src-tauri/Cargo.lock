@@ -1952,7 +1952,7 @@ dependencies = [
 
 [[package]]
 name = "kreis"
-version = "0.10.3"
+version = "0.11.0"
 dependencies = [
  "futures-util",
  "serde",
