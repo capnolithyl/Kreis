@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { availableMonitors, getCurrentWindow, LogicalSize, PhysicalPosition } from '@tauri-apps/api/window';
+import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { load, type Store } from '@tauri-apps/plugin-store';
 import { ArrowLeft, Check, ChevronDown, CircleHelp, Copy, Minus, Plus, RotateCcw, Save, Settings2, Trash2, X } from 'lucide-react';
-import { focusAppWindow, focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, hideWheel, launch, listAppWindows, openFolder, openNewBrowserTab, toggleWheel, type AppWindow, type BrowserTab, type ContextAdd, takeStartupContext, windowsContextMenuEnabled, setWindowsContextMenu } from './bridge';
+import { focusAppWindow, focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, hideWheel, launch, startHubDrag, listAppWindows, openFolder, openNewBrowserTab, toggleWheel, type AppWindow, type BrowserTab, type ContextAdd, takeStartupContext, windowsContextMenuEnabled, setWindowsContextMenu } from './bridge';
 import { icons } from './icons';
 import { DEFAULT_APPEARANCE, DEFAULT_SETTINGS, WHEEL_FONTS, normalizeAppearance, wheelFontStack, type Entry, type Settings, type WheelAppearance, type WheelFont, validateEntry } from './types';
 import RadialWheel, { type WheelContextAction, type WheelOption } from './RadialWheel';
@@ -15,7 +15,6 @@ import { SETTINGS_CATEGORIES, settingsCategoryTitle, type SettingsCategory } fro
 import { ColorPicker, IconPicker } from './ShortcutAppearancePicker';
 import { eligibleParentGroups, flattenHierarchy, getChildren, removeGroup, suggestParent, validateHierarchy } from './groupHierarchy.mjs';
 import { dropEntry, type DropMode } from './groupDragDrop.mjs';
-import { clampWindowToMonitors } from './hubDrag.mjs';
 import type { CSSProperties } from 'react';
 
 type WheelLevel =
@@ -566,22 +565,12 @@ export default function App() {
     void applyWheelContextEntries(result.entries, `Removed ${entry.title}`);
   }
 
-  /** Windows handles the physical drag for smooth motion even outside the WebView.
-   * Nothing is written to settings: the next opening re-centers near the cursor.
+  /** Start the drag in Rust; movement uses one physical Windows coordinate system.
+   * The Tauri window should stay focused and visible until the button is released.
    */
   async function moveKreisByHub() {
     try {
-      // Do not await any other action before starting the OS drag.
-      await window.startDragging();
-      // When the native drag completes, keep the whole wheel visible on one
-      // monitor. Tauri monitor coordinates and window bounds are physical pixels.
-      const [position, size, monitors] = await Promise.all([
-        window.outerPosition(), window.outerSize(), availableMonitors()
-      ]);
-      const next = clampWindowToMonitors(position, size, monitors);
-      if (position.x !== next.x || position.y !== next.y) {
-        await window.setPosition(new PhysicalPosition(next.x, next.y));
-      }
+      await startHubDrag();
     } catch (cause) {
       setError(`Could not move Kreis: ${String(cause)}`);
     }
