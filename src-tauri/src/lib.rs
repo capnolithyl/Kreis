@@ -1,6 +1,8 @@
 mod bridge;
 #[cfg(windows)]
 mod native_windows;
+#[cfg(windows)]
+mod folders;
 
 use std::sync::Arc;
 use tauri::{Emitter, Manager, PhysicalPosition};
@@ -15,6 +17,24 @@ fn pairing_key(bridge: tauri::State<'_, Arc<Bridge>>) -> String {
 #[tauri::command]
 fn connected_profiles(bridge: tauri::State<'_, Arc<Bridge>>) -> Vec<String> {
     bridge.connected()
+}
+
+/// The folder is validated before hiding the Kreis wheel, then automation
+/// runs on a blocking worker so window focus and Ctrl+T delays don't freeze React.
+#[tauri::command]
+async fn open_folder(window: tauri::WebviewWindow, path: String) -> Result<String, String> {
+    #[cfg(windows)]
+    {
+        let folder = folders::resolve_folder(&path)?;
+        window.hide().map_err(|e| e.to_string())?;
+        tauri::async_runtime::spawn_blocking(move || folders::open_folder(&folder))
+            .await.map_err(|e| format!("Explorer operation failed: {e}"))?
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (window, path);
+        Err("Folder shortcuts are currently supported on Windows only.".into())
+    }
 }
 
 #[tauri::command]
@@ -130,7 +150,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![pairing_key, connected_profiles, focus_application, list_application_windows, focus_application_window, activate_browser, query_browser_tabs, focus_browser_tab, open_browser_tab, toggle_at_cursor, hide_wheel])
+        .invoke_handler(tauri::generate_handler![pairing_key, connected_profiles, open_folder, focus_application, list_application_windows, focus_application_window, activate_browser, query_browser_tabs, focus_browser_tab, open_browser_tab, toggle_at_cursor, hide_wheel])
         .setup(|app| {
             let token = bridge::load_or_create_token(app.handle()).map_err(std::io::Error::other)?;
             let state = Arc::new(Bridge::new(token));
