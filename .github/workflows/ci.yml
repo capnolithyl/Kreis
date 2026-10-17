@@ -37,6 +37,8 @@ jobs:
         run: npm run check:wheel-drag
       - name: Test wheel item context actions
         run: npm run check:wheel-context
+      - name: Test wheel color conversion
+        run: npm run check:wheel-color
       - name: Test nested group hierarchy
         run: npm run check:groups
       - name: Validate Explorer tab lookup script syntax
