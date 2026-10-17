@@ -29,6 +29,8 @@ jobs:
         run: npm run check:extension
       - name: Test browser title filters
         run: npm run check:title-filter
+      - name: Test Add to Kreis context menu data
+        run: npm run check:context
       - name: Test radial drag and drop
         run: npm run check:wheel-drag
       - name: Test nested group hierarchy
