@@ -1,17 +1,25 @@
 <!doctype html>
 <html lang="en"><head><meta charset="UTF-8"/><title>Kreis browser bridge</title><style>
-body{font:13px 'Segoe UI',sans-serif;background:#141b2c;color:#f2f6ff;padding:16px;width:300px;margin:0}
-h1{font-size:23px;margin:0 0 2px}p{color:#adbad5;line-height:1.5}label{display:block;margin:14px 0 4px}input,select{width:100%;box-sizing:border-box;background:#202c45;border:1px solid #566481;border-radius:7px;color:#fff;padding:10px}button{background:#9aafff;border:0;border-radius:7px;padding:10px 18px;margin-top:16px;font-weight:700;cursor:pointer}#status{font-weight:650;color:#9aafff}small{color:#a6afbf}
+body{font:13px 'Segoe UI',sans-serif;background:#141b2c;color:#f2f6ff;padding:16px;width:325px;margin:0}
+h1{font-size:23px;margin:0 0 2px}p{color:#adbad5;line-height:1.5}label{display:block;margin:14px 0 4px}
+input,select{width:100%;box-sizing:border-box;background:#202c45;border:1px solid #566481;border-radius:7px;color:#fff;padding:10px}
+button{background:#9aafff;border:0;border-radius:7px;padding:10px 18px;margin-top:12px;font-weight:700;cursor:pointer}
+button:disabled{opacity:.6;cursor:wait}#refresh-profiles{background:#2d3954;color:#d7e3ff;margin-top:7px}
+#status{font-weight:650;color:#9aafff}small{color:#a6afbf}
 #diagnostics{font:11px/1.55 Consolas,monospace;white-space:pre-wrap;word-break:break-word;background:#1e2840;border:1px solid #3d4a67;padding:10px;border-radius:7px;max-height:220px;overflow:auto;color:#c7d4f4}
 #scan{background:#2d3954;color:#d7e3ff;margin-top:8px}h2{font-size:14px;margin:22px 0 8px}
 </style></head><body>
-<h1>Kreis <small>0.3.1</small></h1>
-<p>Pair this browser profile with the Kreis Windows app. Each Vivaldi profile needs its own extension installation.</p>
-<label for="profile">Profile</label><select id="profile"><option>Work</option><option>Personal</option></select>
-<label for="pairingToken">Pairing key from Kreis settings</label><input type="password" id="pairingToken" autocomplete="off" spellcheck="false" placeholder="Paste pairing key"/>
-<button id="save">Save & connect</button><p>Status: <span id="status">Checking...</span></p>
+<h1>Kreis <small>0.4.0</small></h1>
+<p>Pair this Chromium browser profile with Kreis. Add browser profiles in Kreis Settings → Connection first, then select the matching one here. Each browser profile needs its own extension installation.</p>
+<label for="pairingToken">Pairing key from Kreis Settings</label>
+<input type="password" id="pairingToken" autocomplete="off" spellcheck="false" placeholder="Paste pairing key"/>
+<label for="profile">Browser and profile</label>
+<select id="profile" aria-label="Kreis browser and profile"></select>
+<button id="refresh-profiles" type="button">Load profiles from Kreis</button>
+<button id="save" type="button">Save &amp; connect</button>
+<p>Status: <span id="status">Checking...</span></p>
 <h2>Tab matching diagnostics</h2>
 <p>After using Kreis, reopen this popup to see why it focused a tab or opened a new one. URLs are summarized locally with no query strings.</p>
-<button id="scan">Scan tabs now</button>
+<button id="scan" type="button">Scan tabs now</button>
 <pre id="diagnostics">No lookup yet.</pre>
 <script src="popup.js"></script></body></html>
