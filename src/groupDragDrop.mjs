@@ -28,12 +28,9 @@ export function dropEntry(entries, sourceId, targetId, mode, options = {}) {
     return fail('Unknown drop action.');
   }
   if (source.type === 'group' && wouldCreateCycle(entries, sourceId, parentId)) {
-    return fail('A group cannot be moved into itself or one of its descendants.');
-  }
-  // Combining a parent group with its own child would make a cycle.
-  if (mode === 'combine' && source.type === 'group'
-    && wouldCreateCycle(entries, sourceId, parentId)) {
-    return fail('A parent group cannot be combined with an item inside itself.');
+    return fail(mode === 'combine'
+      ? 'A parent group cannot be combined with an item inside itself.'
+      : 'A group cannot be moved into itself or one of its descendants.');
   }
 
   const originalSiblings = getChildren(entries, parentId);
