@@ -1,7 +1,7 @@
 {
   "name": "kreis",
   "private": true,
-  "version": "0.11.1",
+  "version": "0.11.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,6 +12,7 @@
     "check:groups": "node --test tests/group-hierarchy.test.mjs",
     "check:wheel-drag": "node --test tests/group-drag-drop.test.mjs",
     "check:quick-keys": "node --test tests/quick-keys.test.mjs tests/legacy-ten-slices.test.mjs",
+    "check:starter": "node --test tests/starter-settings.test.mjs",
     "check:hub-drag": "node --test tests/hub-drag.test.mjs",
     "check:wheel-context": "node --test tests/wheel-context.test.mjs",
     "check:wheel-color": "node --test tests/wheel-color.test.mjs",

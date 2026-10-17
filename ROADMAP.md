@@ -6,12 +6,12 @@ This document tracks **proposed work**, not functionality already shipped. The m
 
 The goal is to make Kreis welcoming on a clean install while keeping existing configurations safe.
 
-### 1. Generic starter state
+### 1. Generic starter state (delivered in 0.11.2)
 
-- Replace project-specific default shortcuts with a small, recognizable, platform-neutral starter set. Candidate examples: **Google**, **YouTube**, **Wikipedia**, and **Downloads**.
+- Replace project-specific default shortcuts with a small, recognizable starter set: **Google**, **YouTube**, **Wikipedia**, **Downloads**, and **Tools** (GitHub, Notepad).
 - Showcase more than one supported target type without requiring users to have a particular application installed.
 - Ensure starter entries have neutral names, working URLs, sensible icons and colors.
-- Apply new defaults **only if no saved configuration exists**. Never overwrite or reset an existing user's customized shortcuts, groups, or profiles on upgrade.
+- Apply new defaults **only if no saved configuration exists**, persisting the first-run choice. Never overwrite or reset an existing user's customized shortcuts, groups, or profiles on upgrade.
 - Keep the README and in-app examples aligned with what actually ships.
 
 **Acceptance:** A clean installation has useful generic slices. Upgrading an existing installation leaves the user's saved Kreis unchanged.

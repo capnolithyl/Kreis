@@ -38,6 +38,8 @@ jobs:
         run: npm run check:wheel-drag
       - name: Test numbered Quick Keys and safe ten-slice migration
         run: npm run check:quick-keys
+      - name: Test fresh-install starter shortcuts and settings preservation
+        run: npm run check:starter
       - name: Test hub drag and monitor positioning
         run: npm run check:hub-drag
       - name: Test wheel item context actions
