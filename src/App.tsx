@@ -7,7 +7,9 @@ import { ArrowLeft, Check, ChevronDown, CircleHelp, Copy, Minus, Plus, RotateCcw
 import { focusAppWindow, focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, hideWheel, launch, listAppWindows, openFolder, openNewBrowserTab, toggleWheel, type AppWindow, type BrowserTab, type ContextAdd, takeStartupContext, windowsContextMenuEnabled, setWindowsContextMenu } from './bridge';
 import { icons } from './icons';
 import { DEFAULT_APPEARANCE, DEFAULT_SETTINGS, WHEEL_FONTS, normalizeAppearance, wheelFontStack, type Entry, type Settings, type WheelAppearance, type WheelFont, validateEntry } from './types';
-import RadialWheel, { type WheelOption } from './RadialWheel';
+import RadialWheel, { type WheelContextAction, type WheelOption } from './RadialWheel';
+import WheelItemDialog, { type WheelEditMode } from './WheelItemDialog';
+import { editWheelEntry, duplicateWheelEntry, deleteWheelEntry } from './wheelContextActions.mjs';
 import { filterByTitle } from './titleFilter.mjs';
 import { SETTINGS_CATEGORIES, settingsCategoryTitle, type SettingsCategory } from './settingsCategories';
 import { ColorPicker, IconPicker } from './ShortcutAppearancePicker';
@@ -62,6 +64,7 @@ export default function App() {
   const [pendingGroup, setPendingGroup] = useState<{ sourceId: string; targetId: string; sourceTitle: string; targetTitle: string; name: string } | null>(null);
   const [wheelFeedback, setWheelFeedback] = useState('');
   const [undoEntries, setUndoEntries] = useState<Entry[] | null>(null);
+  const [wheelEdit, setWheelEdit] = useState<{ entryId: string; mode: WheelEditMode } | null>(null);
   const [contextAdd, setContextAdd] = useState<ContextAdd | null>(null);
   const [contextLabel, setContextLabel] = useState('');
   const [contextGroupId, setContextGroupId] = useState('');
@@ -91,6 +94,7 @@ export default function App() {
     setTabPage(0);
     setError('');
     setPendingGroup(null);
+    setWheelEdit(null);
     setWheelFeedback('');
     setUndoEntries(null);
   }, []);
@@ -228,6 +232,7 @@ export default function App() {
       if (event.key === 'Escape') {
         event.preventDefault();
         if (draft) { setDraft(null); return; }
+        if (wheelEdit) { setWheelEdit(null); setError(''); return; }
         if (screen === 'context') { void closeLauncher(); return; }
         if (pendingGroup) { setPendingGroup(null); return; }
         if (screen === 'settings') { void backToSettingsWheel(); return; }
@@ -239,7 +244,7 @@ export default function App() {
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [draft, pendingGroup, screen, levels]);
+  }, [draft, wheelEdit, pendingGroup, screen, levels]);
 
   /** The main wheel's center and the tray Settings item both open the category wheel. */
   function openSettingsWheel(fromTray = false) {
@@ -499,6 +504,67 @@ export default function App() {
     catch (cause) { setError(String(cause)); }
   }
 
+
+  /** All direct wheel changes are persisted with the same validation as Settings. */
+  async function applyWheelContextEntries(nextEntries: Entry[], message: string) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
+    const previous = settings.entries;
+    try {
+      await persist({ ...settings, entries: nextEntries });
+      setUndoEntries(previous);
+      setWheelFeedback(message);
+      setWheelEdit(null);
+    } catch (cause) { setError(String(cause)); }
+    finally { busyRef.current = false; setBusy(false); }
+  }
+
+  function handleWheelContextAction(entryId: string, action: WheelContextAction) {
+    if (busyRef.current || pendingGroup) return;
+    const entry = settings.entries.find(item => item.id === entryId);
+    if (!entry) return setError('Shortcut no longer exists.');
+    setError('');
+    setWheelFeedback('');
+    if (action === 'copy') {
+      void navigator.clipboard.writeText(entry.target)
+        .then(() => setWheelFeedback('Target copied to clipboard'))
+        .catch(cause => setError(`Could not copy shortcut: ${String(cause)}`));
+      return;
+    }
+    if (action === 'duplicate') {
+      const result = duplicateWheelEntry(settings.entries, entryId, crypto.randomUUID(), MAX_ITEMS_PER_WHEEL);
+      if (result.error) return setError(result.error);
+      void applyWheelContextEntries(result.entries, `Duplicated ${entry.title}`);
+      return;
+    }
+    setWheelEdit({ entryId, mode: action });
+  }
+
+  function saveWheelItem(edited: Entry) {
+    const entry: Entry = {
+      ...edited,
+      title: edited.title.trim(),
+      target: edited.type === 'group' ? '' : edited.target.trim(),
+      groupId: edited.groupId || undefined,
+      windowTitle: edited.windowTitle?.trim() || undefined
+    };
+    const invalid = validateEntry(entry);
+    if (invalid) return setError(invalid);
+    const result = editWheelEntry(settings.entries, entry, MAX_ITEMS_PER_WHEEL);
+    if (result.error) return setError(result.error);
+    void applyWheelContextEntries(result.entries, `Updated ${entry.title}`);
+  }
+
+  function deleteWheelItem(id: string) {
+    const entry = settings.entries.find(item => item.id === id);
+    if (!entry) return setError('Shortcut no longer exists.');
+    const result = deleteWheelEntry(settings.entries, id, MAX_ITEMS_PER_WHEEL);
+    if (result.error) return setError(result.error);
+    void applyWheelContextEntries(result.entries, `Removed ${entry.title}`);
+  }
+
   /** Drag/drop happens directly on the radial launcher. Settings arrows remain. */
   async function persistWheelDrop(sourceId: string, targetId: string | null, mode: DropMode,
     group?: { id: string; title: string }) {
@@ -594,6 +660,8 @@ export default function App() {
   const defaultNewParent = suggestParent(settings.entries, MAX_ITEMS_PER_WHEEL);
   const canAddToAnyWheel = rootEntries.length < MAX_ITEMS_PER_WHEEL || defaultNewParent !== undefined;
   const activeLevel = levels[levels.length - 1];
+  const editedWheelEntry = wheelEdit
+    ? settings.entries.find(item => item.id === wheelEdit.entryId) : undefined;
   const currentOptions = activeLevel?.kind === 'group'
     ? childrenFor(activeLevel.entry.id) : rootEntries;
 
@@ -690,6 +758,7 @@ export default function App() {
           </div>
         </div>
       ) : screen === 'wheel' ? (
+        <>
         <RadialWheel
           key={activeLevel ? `${activeLevel.kind}-${activeLevel.entry.id}-${tabPage}-${wheelEpoch}` : `main-${wheelEpoch}`}
           buttons={wheelButtons}
@@ -708,6 +777,7 @@ export default function App() {
           allowRearrange={!activeLevel || activeLevel.kind === 'group'}
           allowMoveUp={activeLevel?.kind === 'group'}
           onDropWedge={dropWheelWedge}
+          onContextAction={handleWheelContextAction}
           groupCreation={pendingGroup}
           onGroupNameChange={name => setPendingGroup(current => current ? { ...current, name } : null)}
           onConfirmGroup={() => void confirmWheelGroup()}
@@ -716,6 +786,17 @@ export default function App() {
           canUndo={Boolean(undoEntries)}
           onUndo={() => void undoWheelDrop()}
         />
+        {wheelEdit && editedWheelEntry && (
+          <WheelItemDialog
+            key={`${wheelEdit.entryId}:${wheelEdit.mode}`}
+            entry={editedWheelEntry} entries={settings.entries}
+            mode={wheelEdit.mode} busy={busy} error={error}
+            onSave={saveWheelItem}
+            onDelete={() => deleteWheelItem(wheelEdit.entryId)}
+            onClose={() => { setWheelEdit(null); setError(''); }}
+          />
+        )}
+        </>
       ) : (
         <div className="settings-shell">
           <header className="settings-header">
