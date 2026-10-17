@@ -40,6 +40,8 @@ jobs:
         run: npm run check:quick-keys
       - name: Test fresh-install starter shortcuts and settings preservation
         run: npm run check:starter
+      - name: Test multi-browser profile migration, rename and deletion
+        run: npm run check:browser-profiles
       - name: Test hub drag and monitor positioning
         run: npm run check:hub-drag
       - name: Test wheel item context actions
