@@ -45,7 +45,7 @@ test('deleting intermediate group preserves children and grandchildren', () => {
 });
 
 test('deleting group refuses overflow and loses no entries', () => {
-  const crowded = [entry('Work'), entry('IHM','group','Work'), ...Array.from({length:12},(_,i)=>entry('S'+i, 'browser','Work')), entry('extra','browser','IHM')];
+  const crowded = [entry('Work'), entry('IHM','group','Work'), ...Array.from({length:11},(_,i)=>entry('S'+i, 'browser','Work')), entry('extra','browser','IHM'), entry('extra2','browser','IHM')];
   const result = removeGroup(crowded, 'IHM');
   assert.match(result.error, /exceeds 12/);
   assert.equal(result.entries.length, crowded.length);
