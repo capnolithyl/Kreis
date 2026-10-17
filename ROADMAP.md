@@ -16,7 +16,7 @@ The goal is to make Kreis welcoming on a clean install while keeping existing co
 
 **Acceptance:** A clean installation has useful generic slices. Upgrading an existing installation leaves the user's saved Kreis unchanged.
 
-### 2. Drag the entire Kreis by the hub (delivered in 0.10.2)
+### 2. Drag the entire Kreis by the hub (delivered in 0.10.2; stabilized in 0.10.3)
 
 - Hold and drag the **hub** to reposition the whole launcher window on the current screen.
 - Preserve regular hub clicks: Settings on the Main Kreis, Back on a child Kreis. Use a small movement threshold so clicks are not mistaken for drags.
