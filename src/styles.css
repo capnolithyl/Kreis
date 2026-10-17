@@ -22,12 +22,20 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .wheel-segment-label { fill: #f1f5fd; font-family: inherit; font-size: var(--wheel-label-size, 12px); font-weight: 650; letter-spacing: .05px; dominant-baseline: auto; paint-order: stroke fill; stroke: #0e1725; stroke-width: 2.3px; stroke-linejoin: round; }
 /* Number badges sit closer to the outside of each slice, separate from its label.
    Pointer handling remains on the parent wedge so badges cannot steal dragging. */
-.wheel-quick-key { pointer-events: none; }
-.wheel-quick-key-circle { fill: #101b2fe8; stroke: #c2d9f4b5; stroke-width: 1.5px; }
-.wheel-quick-key-number { fill: #fff; font-family: inherit; font-size: 13px; font-weight: 800; paint-order: stroke fill; stroke: #172134; stroke-width: .65px; }
-.wheel-segment:hover .wheel-quick-key-circle, .wheel-segment:focus-visible .wheel-quick-key-circle {
-  fill: #40638e; stroke: #f3f8ff;
+/* Ghost numerals sit beneath the icon and label instead of taking a separate
+   badge position. Each numeral remains inside its slice at all group sizes. */
+.wheel-ghost-number {
+  fill: #f3f7ff;
+  opacity: .14;
+  font-family: inherit;
+  font-size: 84px;
+  font-weight: 900;
+  letter-spacing: -4px;
+  user-select: none;
+  transition: opacity 170ms ease;
 }
+.wheel-segment:hover .wheel-ghost-number,
+.wheel-segment:focus-visible .wheel-ghost-number { opacity: .25; }
 .wheel-segment:hover .wheel-segment-tint, .wheel-segment:focus-visible .wheel-segment-tint { fill-opacity: .45; }
 .wheel-segment:hover .wheel-segment-base, .wheel-segment:focus-visible .wheel-segment-base { filter: brightness(1.22); }
 .wheel-segment:hover .wheel-segment-content, .wheel-segment:focus-visible .wheel-segment-content { transform: translateY(-3px) scale(1.05); }
@@ -41,6 +49,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .wheel-center { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
 .wheel-center:active { cursor: grabbing; }
 .wheel-hub-hint { font-size: 10px; font-weight: 550; color: #91accd; letter-spacing: .2px; pointer-events: none; }
+.wheel-hub-hint kbd { display: inline-block; padding: 0 4px; border: 1px solid #8299ba88; border-radius: 3px; background: #21334bbb; font: inherit; color: #e8f1ff; }
 
 .wheel-center:hover, .wheel-center:focus-visible { background: rgba(106, 141, 181, .13); box-shadow: inset 0 0 26px #b7d9fd13; transform: scale(1.035); }
 .wheel-center-name { font-size: var(--wheel-center-size, 16px); font-weight: 800; letter-spacing: 2.2px; }
