@@ -45,5 +45,8 @@ jobs:
           }
       - name: Validate full Windows installer build
         run: npm run tauri build
+      - name: Test installer SHA-256 manifest
+        shell: pwsh
+        run: ./scripts/installer-checksum.ps1
       - name: Ensure locked dependencies were unchanged
         run: git diff --exit-code -- package-lock.json src-tauri/Cargo.lock
