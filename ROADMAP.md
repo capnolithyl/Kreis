@@ -49,18 +49,18 @@ The goal is to make Kreis welcoming on a clean install while keeping existing co
 
 **Acceptance:** New slices respect the 10-item limit while preexisting 11/12-slice setups remain accessible and can be reorganized safely.
 
-## 0.12.0: Multi-browser support and profile manager
+## 0.12.0: Multi-browser support and profile manager (implemented in 0.12.0; browser testing ongoing)
 
 The goal is to remove Vivaldi-specific assumptions from the browser bridge and let people define their own browsers and profiles.
 
-### 1. Multiple Chromium-based browsers
+### 1. Multiple Chromium-based browsers (companion v0.4.0)
 
 - Extend the companion workflow beyond Vivaldi, starting with major Chromium-based browsers where the required extension APIs behave consistently: **Chrome**, **Edge**, **Brave**, **Opera**, and **Vivaldi**.
 - Verify pairing, connection status, tab discovery, tab focusing, new-tab behavior, and browser-link context menu integration in each supported browser.
 - Handle browser-specific executable paths, installation differences, and permission limitations.
 - Do not claim support for a browser until its actual integration has been tested.
 
-### 2. User-managed profiles
+### 2. User-managed profiles (implemented)
 
 - Replace the fixed Work/Personal profile enumeration with persistent, user-created profile identities.
 - Add, rename and remove profiles from Kreis Settings.
@@ -69,7 +69,7 @@ The goal is to remove Vivaldi-specific assumptions from the browser bridge and l
 - Show connection health and pairing state per configured browser/profile.
 - Decide how multiple simultaneously connected instances of one profile should be handled.
 
-### 3. Safe migration and deletion
+### 3. Safe migration and deletion (implemented)
 
 - Migrate existing Work and Personal Vivaldi shortcuts and pairings without losing shortcuts or breaking already paired profiles.
 - When a profile is renamed, keep shortcuts bound by a stable identifier rather than by the displayed label.
