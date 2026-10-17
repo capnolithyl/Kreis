@@ -1,9 +1,10 @@
 import { getChildren, validateHierarchy, wouldCreateCycle } from './groupHierarchy.mjs';
 
 /**
- * Pure tree edit for Settings drag-and-drop. Never mutates the saved array.
- * "before"/"after" reorder, "inside" files into an existing group,
- * "combine" creates a named group, and "root" moves to Main Kreis.
+ * Pure tree edit for dragging wedges directly on a radial Kreis.
+ * Never mutates the saved array. "before"/"after" reorder clockwise,
+ * "inside" files into a group, "combine" creates a new group, and
+ * "root" moves to the parent of the currently visible sub-Kreis.
  */
 export function dropEntry(entries, sourceId, targetId, mode, options = {}) {
   const fail = error => ({ entries, changed: false, error, newGroupId: undefined });
@@ -15,7 +16,7 @@ export function dropEntry(entries, sourceId, targetId, mode, options = {}) {
 
   let parentId = '';
   if (mode === 'root') {
-    parentId = '';
+    parentId = options.parentGroupId || '';
   } else if (mode === 'inside') {
     if (target.type !== 'group') return fail('Only groups can contain shortcuts.');
     parentId = target.id;
@@ -36,7 +37,6 @@ export function dropEntry(entries, sourceId, targetId, mode, options = {}) {
   }
 
   const originalSiblings = getChildren(entries, parentId);
-  const sourceOriginalParent = source.groupId || '';
   let next = entries.filter(entry => entry.id !== sourceId);
   let order = [];
   let newGroupId;
@@ -45,7 +45,7 @@ export function dropEntry(entries, sourceId, targetId, mode, options = {}) {
     if (target.type === 'group') return fail('Drop onto a group to move inside it.');
     const name = (options.groupTitle || '').trim();
     newGroupId = options.groupId;
-    if (!name) return fail('Give the new group a name.');
+    if (!name || name.length > 30) return fail('Give the new group a name (up to 30 characters).');
     if (!newGroupId || entries.some(entry => entry.id === newGroupId)) {
       return fail('Cannot create a group with this identifier.');
     }
@@ -110,10 +110,27 @@ export function dropEntry(entries, sourceId, targetId, mode, options = {}) {
   return { entries: changed ? result : entries, changed, error: null, newGroupId };
 }
 
-export function dropModeForPointer(pointerY, top, height, targetType) {
-  if (height <= 0) return 'after';
-  const relative = Math.max(0, Math.min(1, (pointerY - top) / height));
-  if (relative < 0.25) return 'before';
-  if (relative > 0.75) return 'after';
-  return targetType === 'group' ? 'inside' : 'combine';
+/**
+ * Convert pointer position in the 600x600 SVG to a wedge target.
+ * Tip: within the middle 56% of a wedge, drop groups go inside and
+ * plain shortcuts become a new group. Near angular edges reorder.
+ */
+export function wheelDropIntent(x, y, types, allowParent = false) {
+  const count = types.length;
+  if (!count) return null;
+  const dx = x - 300, dy = y - 300;
+  const radius = Math.hypot(dx, dy);
+  if (radius < 108) return allowParent && radius <= 105 ? { mode: 'root', targetIndex: null } : null;
+  if (radius > 249) return null;
+  const step = 2 * Math.PI / count;
+  const shifted = ((Math.atan2(dy, dx) + Math.PI / 2) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+  const rawIndex = Math.round(shifted / step);
+  const targetIndex = rawIndex % count;
+  const signed = shifted - rawIndex * step;
+  const edge = Math.abs(signed) / (step / 2);
+  return {
+    targetIndex,
+    mode: edge > 0.56 ? (signed < 0 ? 'before' : 'after')
+      : types[targetIndex] === 'group' ? 'inside' : 'combine'
+  };
 }
