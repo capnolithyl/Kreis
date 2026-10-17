@@ -306,20 +306,55 @@ input::placeholder { color: #687692; }
   .wheel-segment.is-drop-target .wheel-segment-tint { transition: none; }
 }
 
-/* Compact destination picker shown after Explorer or Vivaldi's Add to Kreis. */
-.quick-add-shell { width: 600px; height: 600px; padding: 38px; border-radius: 22px;
+/* The same compact Add to Kreis editor handles Explorer and Chromium context menus.
+   Fields scroll inside the fixed Tauri window; Save/Cancel stay visible. */
+.quick-add-shell { width: 600px; height: 600px; padding: 29px 34px; border-radius: 22px;
   background: radial-gradient(circle at 90% 0, #2b3956, #121a2a 57%);
   border: 1px solid #4a5a76; box-shadow: 0 20px 70px #000a;
-  display: flex; flex-direction: column; gap: 20px; }
+  display: flex; flex-direction: column; gap: 12px; }
 .quick-add-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.quick-add-heading h1 { font-size: 24px; line-height: 1.2; margin: 0; color: #f3f6ff; }
-.quick-add-target { margin: -5px 0 0; background: #121a2bcc; padding: 12px 14px;
+.quick-add-heading h1 { font-size: 23px; line-height: 1.2; margin: 0; color: #f3f6ff; }
+.quick-add-target { margin: 0; background: #121a2bcc; padding: 10px 12px;
   border-radius: 9px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
-  font-size: 11px; color: #b7c7dc; }
-.quick-add-shell label { display: flex; flex-direction: column; gap: 8px; color: #d2daed; font-size: 13px; }
-.quick-add-shell label input { flex: none; }
+  font-size: 11px; color: #b7c7dc; flex-shrink: 0; }
+.quick-add-fields { display: flex; flex-direction: column; gap: 13px; flex: 1; min-height: 0;
+  overflow-x: hidden; overflow-y: auto; padding: 3px 8px 5px 2px; scrollbar-color: #637b9c transparent; }
+.quick-add-fields > label { display: flex; flex-direction: column; gap: 7px; color: #d2daed; font-size: 12px; flex-shrink: 0; }
+.quick-add-fields > label input, .quick-add-fields > label select { width: 100%; flex: none; }
 .quick-add-shell .helper { margin: 0; }
-.quick-add-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: auto; }
+.quick-add-appearance { display: flex; flex-direction: column; gap: 11px; flex-shrink: 0; }
+.quick-add-preview { display: flex; align-items: center; gap: 9px; padding: 7px 11px;
+  border-radius: 9px; background: #151f30; border: 1px solid #3c506f; min-width: 0; }
+.quick-add-preview-icon { width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+  color: #fff; display: grid; place-items: center; border: 1px solid #ffffff44; }
+.quick-add-preview-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: #f0f5ff; font-weight: 700; font-size: 12px; flex: 1; min-width: 0; }
+.quick-add-preview small { color: #9eb2ce; font-size: 10px; }
+.quick-add-appearance-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 188px); gap: 12px; }
+.quick-add-appearance-fields .appearance-field { min-width: 0; }
+/* Give the searchable gallery the full scroll-panel width when opened. */
+.quick-add-appearance-fields:has(.icon-picker-gallery) { grid-template-columns: minmax(0, 1fr); }
+.quick-add-appearance-fields .icon-picker-trigger { min-width: 0; }
+.quick-add-appearance-fields .icon-picker-preview { width: 45px; flex-basis: 45px; }
+.quick-add-appearance-fields .icon-picker-trigger-text { overflow: hidden; }
+.quick-add-appearance-fields .icon-picker-trigger-text strong { overflow: hidden; text-overflow: ellipsis; }
+.quick-add-appearance-fields .icon-picker-trigger-text small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.quick-add-color-trigger { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 67px;
+  padding: 8px 10px; border-radius: 10px; border: 1px solid #38445e;
+  color: #edf3ff; background: #171e2e; text-align: left; }
+.quick-add-color-trigger:hover, .quick-add-color-trigger[aria-expanded="true"] { background: #202b41; border-color: #8199bf; }
+.quick-add-color-swatch { height: 45px; width: 43px; flex-shrink: 0; border-radius: 8px; border: 1px solid #ffffff55; }
+.quick-add-color-info { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 4px; }
+.quick-add-color-info strong { font-size: 12px; }
+.quick-add-color-info small { color: #9eacc6; font-size: 10px; white-space: nowrap; }
+.quick-add-fields .icon-picker-gallery { padding: 10px; }
+.quick-add-fields .icon-picker-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); max-height: 176px; }
+.quick-add-color-editor { padding: 13px; border-radius: 11px; background: #131b2b; border: 1px solid #40536f; }
+.quick-add-color-editor .wheel-inline-color-presets { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.quick-add-color-editor .wheel-inline-color-shade { height: 110px; }
+.quick-add-actions { display: flex; justify-content: flex-end; gap: 12px; flex-shrink: 0;
+  border-top: 1px solid #3a4a64; padding-top: 11px; }
+.quick-add-shell > .dialog-error { margin: 0; max-height: 58px; overflow-y: auto; }
 
 /* Right-click actions are part of the radial launcher, not the Settings screen.
    Keep menu, confirmation and editors inside the transparent 600px Tauri window. */

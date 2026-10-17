@@ -1,7 +1,7 @@
 {
   "name": "kreis",
   "private": true,
-  "version": "0.12.0",
+  "version": "0.12.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,7 +17,7 @@
     "check:hub-drag": "node --test tests/hub-drag.test.mjs",
     "check:wheel-context": "node --test tests/wheel-context.test.mjs",
     "check:wheel-color": "node --test tests/wheel-color.test.mjs",
-    "check:context": "node --test tests/context-add.test.mjs",
+    "check:context": "node --test tests/context-add.test.mjs tests/context-appearance.test.mjs",
     "check:chatgpt-tabs": "node --test tests/chatgpt-tab-matching.test.mjs"
   },
   "dependencies": {
