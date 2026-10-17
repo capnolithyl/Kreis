@@ -875,7 +875,7 @@ export default function App() {
                 aria-label="Back to Settings wheel" title="Back to Settings wheel"><ArrowLeft size={20}/></button>
               <div>
                 <div className="overline">KREIS SETTINGS</div>
-                <h1>{settingsCategoryTitle(settingsSection)} <small>0.11.2</small></h1>
+                <h1>{settingsCategoryTitle(settingsSection)} <small>0.12.0</small></h1>
                 <p>{SETTINGS_CATEGORIES.find(category => category.key === settingsSection)?.description}</p>
               </div>
             </div>
@@ -982,7 +982,7 @@ export default function App() {
                 </button>
                 <strong className={contextMenuEnabled ? 'online' : 'offline'}>{contextMenuEnabled ? 'Enabled' : 'Disabled'}</strong>
               </div>
-              <p className="helper">Right-click any website link or page in Vivaldi for “Add link/page to Kreis.” Reload the unpacked extension after upgrading so Vivaldi grants the new contextMenus permission. Kreis must be running in the tray for the browser action to arrive.</p>
+              <p className="helper">Right-click a website or link in a paired Chromium browser for “Add link/page to Kreis.” Load extension v0.4.0 for new profiles. Kreis must be running in the tray.</p>
             </section>}
             {settingsSection === 'connection' && <BrowserProfilesPanel
               profiles={settings.browserProfiles} connected={profiles} entries={settings.entries} pairingKey={pairingKey}
