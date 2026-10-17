@@ -5,7 +5,8 @@ export const SETTINGS_CATEGORIES = [
   { key: 'hotkey', title: 'Hotkey', icon: 'terminal', color: '#537ed2', description: 'Configure the global keyboard shortcut' },
   { key: 'typography', title: 'Typography', icon: 'settings', color: '#9476cc', description: 'Customize wheel fonts and text sizes' },
   { key: 'shortcuts', title: 'Shortcuts & Groups', icon: 'layers', color: '#4d9b89', description: 'Organize project groups, tabs and applications' },
-  { key: 'connection', title: 'Connection', icon: 'link', color: '#be855a', description: 'Manage Vivaldi browser connections' }
+  { key: 'connection', title: 'Connection', icon: 'link', color: '#be855a', description: 'Manage Vivaldi browser connections' },
+  { key: 'integrations', title: 'Integrations', icon: 'folder', color: '#66a1a5', description: 'Add to Kreis from Windows and Vivaldi context menus' }
 ] as const;
 
 export type SettingsCategory = (typeof SETTINGS_CATEGORIES)[number]['key'];
