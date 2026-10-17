@@ -37,10 +37,15 @@ try {
                 [System.Windows.Automation.ControlType]::TabItem
             )
             $items = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $condition)
-            # On older Windows, each Explorer window represents a single folder.
+            # On Windows 10, each Explorer window is a single folder.
+            # A Windows 11 window might contain background tabs even if UIA
+            # is unavailable, so never assume its active tab is our match.
             if ($items.Count -eq 0) {
-                [Console]::WriteLine($handle)
-                exit 0
+                if ([System.Environment]::OSVersion.Version.Build -lt 22621) {
+                    [Console]::WriteLine($handle)
+                    exit 0
+                }
+                continue
             }
 
             $candidates = @()
