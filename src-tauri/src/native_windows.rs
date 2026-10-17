@@ -3,6 +3,7 @@ use std::{ffi::OsStr, os::windows::ffi::OsStrExt};
 use windows_sys::Win32::{
     Foundation::{CloseHandle, BOOL, HWND, LPARAM, POINT},
     System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION},
+    UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON},
     UI::Shell::ShellExecuteW,
     UI::WindowsAndMessaging::{
         EnumWindows, GetCursorPos, GetWindow, GetWindowTextLengthW, GetWindowTextW,
@@ -27,6 +28,13 @@ pub fn cursor_position() -> Result<(i32, i32), String> {
     } else {
         Ok((pt.x, pt.y))
     }
+}
+
+/// Track actual mouse button state independently of WebView pointer capture.
+pub fn left_button_down() -> bool {
+    // GetAsyncKeyState's high bit indicates the button is currently pressed.
+    // SAFETY: No pointers or window handles are passed to the Win32 function.
+    unsafe { GetAsyncKeyState(VK_LBUTTON as i32) < 0 }
 }
 
 fn expected_name(executable: &str) -> Result<String, String> {
