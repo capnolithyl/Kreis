@@ -778,6 +778,7 @@ export default function App() {
           tabCount={levelCount}
           countLabel={levelCountLabel}
           busy={busy}
+          keyboardDisabled={Boolean(wheelEdit) || Boolean(draft)}
           error={error}
           page={tabPage}
           pageCount={pageCount}
