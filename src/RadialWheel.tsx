@@ -172,7 +172,7 @@ export default function RadialWheel({
       setDragOver(null);
       return;
     }
-    const targetId = intent.targetIndex === null ? null : buttons[intent.targetIndex]?.key;
+    const targetId = intent.targetIndex === null ? null : buttons[intent.targetIndex].key;
     const next = targetId === active.sourceId ? null : {
       sourceId: active.sourceId,
       targetId,
