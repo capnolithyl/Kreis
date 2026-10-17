@@ -23,6 +23,16 @@ jobs:
         run: npm run check:extension
       - name: Test browser title filters
         run: npm run check:title-filter
+      - name: Validate Explorer tab lookup script syntax
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("$PWD/src-tauri/src/explorer_existing_tab.ps1", [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
       - name: Build NSIS installer
         run: npm run tauri build
       - name: Download installer from this run

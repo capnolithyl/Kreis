@@ -1,9 +1,9 @@
 //! Windows Explorer folder activation. Tabs are not exposed by a public Windows API.
-//! Existing *active* folder tabs are located through Shell.Application, while
-//! new tabs use Explorer's Ctrl+T and address bar, with a safe new-window fallback.
+//! Finds folder paths through Shell.Application, uses Windows UI Automation
+//! to select an unambiguous existing tab, and falls back to Ctrl+T or a new window.
 use std::{
-    ffi::OsStr,
-    os::windows::{ffi::OsStrExt, process::CommandExt},
+    ffi::{c_void, OsString},
+    os::windows::{ffi::{OsStrExt, OsStringExt}, process::CommandExt},
     path::{Path, PathBuf},
     process::Command,
     thread,
@@ -11,6 +11,8 @@ use std::{
 };
 use windows_sys::Win32::{
     Foundation::{BOOL, HWND, LPARAM},
+    System::Com::{CoInitializeEx, CoTaskMemFree, CoUninitialize, COINIT_APARTMENTTHREADED},
+    UI::Shell::{FOLDERID_Downloads, SHGetKnownFolderPath},
     UI::{
         Input::KeyboardAndMouse::{
             SendInput, INPUT, INPUT_0, KEYBDINPUT, INPUT_KEYBOARD,
@@ -18,7 +20,7 @@ use windows_sys::Win32::{
         },
         WindowsAndMessaging::{
             EnumWindows, GetClassNameW, GetForegroundWindow, GetWindow,
-            GetWindowTextLengthW, GetWindowTextW, IsIconic, IsWindowVisible,
+            IsIconic, IsWindowVisible,
             SetForegroundWindow, ShowWindow, GW_OWNER, SW_RESTORE,
         },
     },
@@ -75,10 +77,38 @@ fn expand_environment_variables(path: &str) -> String {
     result
 }
 
+/// Resolve Downloads using Windows' configured Known Folder, including relocations.
+fn downloads_known_folder() -> Result<PathBuf, String> {
+    let initialized = unsafe { CoInitializeEx(std::ptr::null(), COINIT_APARTMENTTHREADED as u32) };
+    let mut pointer: *mut u16 = std::ptr::null_mut();
+    let status = unsafe {
+        SHGetKnownFolderPath(&FOLDERID_Downloads, 0, std::ptr::null_mut(), &mut pointer)
+    };
+    let result = if status == 0 && !pointer.is_null() {
+        let mut len = 0;
+        unsafe {
+            while len < 32768 && *pointer.add(len) != 0 { len += 1; }
+            let name = OsString::from_wide(std::slice::from_raw_parts(pointer, len));
+            Ok(PathBuf::from(name))
+        }
+    } else {
+        Err("Unable to find your Windows Downloads folder.".to_string())
+    };
+    if !pointer.is_null() {
+        unsafe { CoTaskMemFree(pointer as *const c_void) };
+    }
+    if initialized >= 0 { unsafe { CoUninitialize() }; }
+    result
+}
+
 pub fn resolve_folder(path: &str) -> Result<PathBuf, String> {
     let supplied = path.trim().trim_matches('"');
     if supplied.is_empty() { return Err("Enter a folder path.".into()); }
-    let path = if supplied == "~" || supplied.starts_with("~\\") || supplied.starts_with("~/") {
+    let path = if supplied.eq_ignore_ascii_case("shell:Downloads")
+        || supplied.eq_ignore_ascii_case("known:Downloads")
+    {
+        downloads_known_folder()?.to_string_lossy().into_owned()
+    } else if supplied == "~" || supplied.starts_with("~\\") || supplied.starts_with("~/") {
         let home = std::env::var("USERPROFILE").map_err(|_| "USERPROFILE is unavailable")?;
         format!("{home}{}", &supplied[1..])
     } else {
@@ -86,7 +116,7 @@ pub fn resolve_folder(path: &str) -> Result<PathBuf, String> {
     };
     let candidate = Path::new(&path);
     if !candidate.is_absolute() {
-        return Err("Use an absolute folder path, such as C:\\Users\\You\\Downloads or %USERPROFILE%\\Downloads.".into());
+        return Err("Use an absolute folder path, such as E:\\Users\\You\\Downloads, or shell:Downloads.".into());
     }
     let canonical = std::fs::canonicalize(candidate)
         .map_err(|_| format!("The folder does not exist or cannot be accessed: {path}"))?;
@@ -123,55 +153,22 @@ fn explorer_windows() -> Vec<HWND> {
     windows
 }
 
-fn current_title(hwnd: HWND) -> String {
-    let len = unsafe { GetWindowTextLengthW(hwnd) };
-    if len <= 0 { return String::new(); }
-    let mut chars = vec![0u16; len as usize + 1];
-    let read = unsafe { GetWindowTextW(hwnd, chars.as_mut_ptr(), chars.len() as i32) };
-    if read <= 0 { return String::new(); }
-    String::from_utf16_lossy(&chars[..read as usize])
-}
-
-/// Enumerating Explorer tabs via Shell.Application is best-effort.
-/// A COM HWND can refer to the *parent window*, so only accept a result if
-/// its current window caption also corresponds to that folder's active tab.
-fn find_active_folder_window(folder: &Path, windows: &[HWND]) -> Option<HWND> {
-    let filename = folder.file_name().unwrap_or_else(|| OsStr::new(""))
-        .to_string_lossy().to_string();
-    if filename.is_empty() { return None; }
-
-    let script = r#"
-try {
-  $expected = $env:KREIS_FOLDER_QUERY.TrimEnd('\')
-  $shell = New-Object -ComObject Shell.Application
-  foreach ($item in $shell.Windows()) {
-    try {
-      $folder = [string]$item.Document.Folder.Self.Path
-      if ($folder.TrimEnd('\') -ieq $expected) {
-        [Console]::WriteLine([string]$item.HWND)
-      }
-    } catch {}
-  }
-} catch {}
-"#;
+/// Windows 11 Explorer tabs share the parent HWND. Match the true shell path
+/// and then select a uniquely named tab via Windows UI Automation.
+fn find_existing_folder_tab(folder: &Path, windows: &[HWND]) -> Option<HWND> {
+    if windows.is_empty() { return None; }
     let output = Command::new("powershell.exe")
-        .args(["-NoProfile", "-NonInteractive", "-Command", script])
+        .args(["-NoProfile", "-NonInteractive", "-Command", include_str!("explorer_existing_tab.ps1")])
         .env("KREIS_FOLDER_QUERY", folder.as_os_str())
-        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW: no flashing PowerShell console
+        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
         .output()
         .ok()?;
     if !output.status.success() { return None; }
-    for line in String::from_utf8_lossy(&output.stdout).lines() {
-        let raw = line.trim().parse::<u64>().ok()?;
-        if let Some(&window) = windows.iter().find(|&&w| w as usize as u64 == raw) {
-            let title = current_title(window);
-            if title.eq_ignore_ascii_case(&filename)
-                || title.to_ascii_lowercase().starts_with(&format!("{} - ", filename.to_ascii_lowercase())) {
-                return Some(window);
-            }
-        }
-    }
-    None
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| line.trim().parse::<u64>().ok())
+        .find_map(|id| windows.iter().copied().find(|&w| w as usize as u64 == id))
 }
 
 fn focus(hwnd: HWND) -> bool {
@@ -253,7 +250,7 @@ pub fn open_folder(folder: &Path) -> Result<String, String> {
     let windows = explorer_windows();
     if windows.is_empty() { return open_new_explorer_window(folder); }
 
-    if let Some(window) = find_active_folder_window(folder, &windows) {
+    if let Some(window) = find_existing_folder_tab(folder, &windows) {
         if focus(window) { return Ok("existing-window".into()); }
     }
 
