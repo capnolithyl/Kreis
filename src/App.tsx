@@ -243,6 +243,38 @@ export default function App() {
     setSettings(next);
   }
 
+  async function createBrowserProfile(name: string, browserId: BrowserId) {
+    const result = addBrowserProfile(settings.browserProfiles, name, browserId, crypto.randomUUID());
+    if (result.error || !result.profiles) { setError(result.error || 'Could not add profile.'); return; }
+    try {
+      await persist({ ...settings, browserProfiles: result.profiles });
+      setError('');
+      setNotice('Browser profile added. Pair its extension using the key below.');
+    } catch (cause) { setError(String(cause)); }
+  }
+
+  async function changeBrowserProfileName(profileId: string, name: string) {
+    const result = renameBrowserProfile(settings.browserProfiles, profileId, name);
+    if (result.error || !result.profiles) { setError(result.error || 'Could not rename profile.'); return; }
+    try {
+      await persist({ ...settings, browserProfiles: result.profiles });
+      setError('');
+      setNotice('Profile renamed. Shortcut assignments have not changed.');
+    } catch (cause) { setError(String(cause)); }
+  }
+
+  async function removeBrowserProfile(profileId: string, replacementId: string) {
+    const result = deleteBrowserProfile(settings, profileId, replacementId);
+    if (result.error || !result.settings) { setError(result.error || 'Could not remove profile.'); return; }
+    try {
+      await persist(result.settings);
+      setProfiles(await getProfiles());
+      setError('');
+      setNotice(replacementId ? 'Profile removed and shortcuts reassigned.' :
+        'Profile removed. Its shortcuts remain saved but need another profile.');
+    } catch (cause) { setError(String(cause)); }
+  }
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
