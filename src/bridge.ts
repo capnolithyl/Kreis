@@ -37,6 +37,8 @@ export const openNewBrowserTab = (entry: Entry) =>
 
 export const getProfiles = () => invoke<string[]>('connected_profiles');
 export const getPairingKey = () => invoke<string>('pairing_key');
+/** Rust follows the OS pointer in physical pixels while the mouse is down. */
+export const startHubDrag = () => invoke<void>('start_hub_drag');
 export const toggleWheel = () => invoke<void>('toggle_at_cursor');
 export const hideWheel = () => invoke<void>('hide_wheel');
 

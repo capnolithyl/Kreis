@@ -2,6 +2,8 @@ mod bridge;
 #[cfg(windows)]
 mod native_windows;
 #[cfg(windows)]
+mod hub_drag;
+#[cfg(windows)]
 mod folders;
 #[cfg(windows)]
 mod context_menu;
@@ -193,10 +195,12 @@ pub fn run() {
     builder
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![pairing_key, connected_profiles, open_folder, focus_application, list_application_windows, focus_application_window, activate_browser, query_browser_tabs, focus_browser_tab, open_browser_tab, toggle_at_cursor, hide_wheel, take_startup_context, set_windows_context_menu, windows_context_menu_enabled])
+        .invoke_handler(tauri::generate_handler![pairing_key, connected_profiles, open_folder, focus_application, list_application_windows, focus_application_window, activate_browser, query_browser_tabs, focus_browser_tab, open_browser_tab, toggle_at_cursor, hide_wheel, hub_drag::start_hub_drag, take_startup_context, set_windows_context_menu, windows_context_menu_enabled])
         .setup(|app| {
             #[cfg(windows)]
             app.manage(StartupContext(Mutex::new(context_menu::from_args(&std::env::args().collect::<Vec<_>>()))));
+            #[cfg(windows)]
+            app.manage(Arc::new(hub_drag::HubDragState::default()));
             let token = bridge::load_or_create_token(app.handle()).map_err(std::io::Error::other)?;
             let state = Arc::new(Bridge::new(token));
             app.manage(state.clone());
@@ -240,7 +244,15 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::Focused(false) = event { let _ = window.hide(); }
+            if let tauri::WindowEvent::Focused(false) = event {
+                // A pointer-driven window move can generate a transient blur;
+                // hiding at that moment interrupts the drag and loses the window.
+                #[cfg(windows)]
+                if window.state::<Arc<hub_drag::HubDragState>>().should_ignore_blur() {
+                    return;
+                }
+                let _ = window.hide();
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event { api.prevent_close(); let _ = window.hide(); }
         })
         .run(tauri::generate_context!())
