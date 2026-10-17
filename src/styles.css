@@ -115,7 +115,7 @@ input::placeholder { color: #687692; }
 .form-grid label { display:flex; flex-direction:column; gap:7px; font-size:12px; color:#b9c6db; }
 .form-grid .wide { grid-column: 1 / -1; }
 .form-grid input {width:100%;}
-.form-grid .color-input {height:42px; padding:5px;}
+/* The native Windows color input stays functional but does not paint the preview. */
 .dialog-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:23px; }
 
 
@@ -152,3 +152,54 @@ input::placeholder { color: #687692; }
 .settings-body .setting-section:only-child { border-bottom: 0; }
 .settings-body .bottom-actions { margin-top: 14px; border-top: 1px solid #30374a; gap: 12px; }
 .settings-body .bottom-actions > button:last-child { margin-left: auto; }
+
+/* The shortcut appearance editor uses real SVG icon previews and an explicit,
+   reliably colored swatch rather than the tiny WebView2 color input surface. */
+.edit-dialog { max-width: 660px; max-height: calc(100% - 12px); display: flex; flex-direction: column; overflow: hidden; }
+.edit-dialog .dialog-heading, .edit-dialog .dialog-actions { flex-shrink: 0; }
+.edit-dialog .form-grid { min-height: 0; overflow-y: auto; padding: 2px 8px 4px 2px; scrollbar-color: #5f718d transparent; }
+.edit-dialog .dialog-actions { margin-top: 16px; padding-top: 15px; border-top: 1px solid #384660; }
+
+.appearance-field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.appearance-label { font-size: 12px; color: #b9c6db; }
+.icon-picker-trigger { display:flex; align-items:center; gap: 13px; width:100%; min-height: 67px; padding: 8px 12px; background: #171e2e; color: #edf3ff; border: 1px solid #38445e; border-radius: 10px; text-align: left; }
+.icon-picker-trigger:hover, .icon-picker-trigger[aria-expanded="true"] { background: #202b41; border-color: #8199bf; }
+.icon-picker-preview { display: grid; place-items: center; height: 46px; width: 54px; flex: 0 0 54px; border-radius: 9px; color: white; border: 1px solid #ffffff38; }
+.icon-picker-trigger-text { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 4px; }
+.icon-picker-trigger-text strong { font-size: 14px; text-transform: capitalize; }
+.icon-picker-trigger-text small { font-size: 11px; color: #9eacc6; }
+.icon-picker-chevron { color: #b4c5de; transition: transform 150ms ease; }
+.icon-picker-chevron.is-open { transform: rotate(180deg); }
+.icon-picker-gallery { padding: 12px; border-radius: 11px; background: #131b2b; border: 1px solid #40536f; }
+.icon-picker-search { display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid #445672; border-radius: 8px; color: #99b2d2; background: #1d293c; margin-bottom: 12px; }
+.icon-picker-search input { background: transparent; border: 0; width: 100%; padding: 10px 0; outline: 0; box-shadow: none; }
+.icon-picker-search:focus-within { outline: 2px solid #9aafff; outline-offset: 2px; }
+.icon-picker-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 7px; max-height: 218px; overflow-y: auto; scrollbar-color: #536480 #1c2839; padding: 1px 4px 1px 1px; }
+.icon-picker-option { display: flex; flex-direction: column; align-items:center; justify-content:center; gap: 7px; min-width: 0; min-height: 69px; padding: 8px 3px 6px; border: 1px solid #33425b; border-radius: 9px; background: #222e45; color: #cfddf0; transition: background 130ms ease, border-color 130ms ease; }
+.icon-picker-option:hover { background: #344669; border-color: #859dd0; }
+.icon-picker-option.is-selected { background: #354578; border-color: #bacaff; box-shadow: inset 0 0 0 1px #bacaff54; color: #fff; }
+.icon-picker-option span { font-size: 10px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.icon-picker-empty { text-align:center; color: #a8bad6; font-size: 12px; padding: 12px; }
+
+.color-picker-layout { display: grid; grid-template-columns: 145px minmax(0, 1fr) 94px; align-items: center; gap: 16px; }
+.form-grid label.color-picker-swatch { display: grid; place-items: center; width: 145px; height: 79px; position: relative; padding: 6px; border-radius: 12px; border: 2px solid #dae7ff66; box-shadow: inset 0 0 0 2px #07101e33; cursor: pointer; overflow: hidden; }
+.color-picker-choose { color: white; background: #12182bc9; font-size: 11px; padding: 6px 9px; border-radius: 7px; pointer-events: none; white-space: nowrap; font-weight: 700; }
+.color-picker-swatch input[type="color"] { position: absolute; inset: 0; height: 100%; width: 100%; opacity: 0; padding: 0; border: 0; margin: 0; cursor: pointer; }
+.color-picker-details { display:flex; flex-direction:column; gap: 5px; min-width:0; }
+.color-picker-details label { font-size: 11px; color: #a7b6ce; }
+.color-picker-details input { min-width: 0; width: 100%; font-size: 13px; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+.color-picker-details input[aria-invalid="true"] { border-color: #dc889b; }
+.color-picker-hint { color: #8599b5; font-size: 10px; line-height: 1.3; }
+.color-picker-live-preview { display:flex; flex-direction:column; align-items:center; gap: 7px; color: #a9bad2; font-size: 10px; }
+.color-picker-mini-wheel { height: 58px; width: 58px; border: 1px solid #ffffff54; border-radius: 50%; display:grid; place-items:center; }
+.color-picker-mini-wheel-inner { height: 29px; width: 29px; border-radius: 50%; background: #172133; box-shadow: 0 0 0 1px #ffffff6b; }
+.color-picker-live-preview small { white-space: nowrap; }
+@media (max-width: 580px) {
+  .icon-picker-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }
+  .color-picker-layout { grid-template-columns: 130px 1fr; }
+  .form-grid label.color-picker-swatch { width: 130px; }
+  .color-picker-live-preview { display:none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .icon-picker-chevron, .icon-picker-option { transition: none; }
+}

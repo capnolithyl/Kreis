@@ -10,6 +10,7 @@ import { DEFAULT_APPEARANCE, DEFAULT_SETTINGS, WHEEL_FONTS, normalizeAppearance,
 import RadialWheel, { type WheelOption } from './RadialWheel';
 import { filterByTitle } from './titleFilter.mjs';
 import { SETTINGS_CATEGORIES, settingsCategoryTitle, type SettingsCategory } from './settingsCategories';
+import { ColorPicker, IconPicker } from './ShortcutAppearancePicker';
 
 type WheelLevel =
   | { kind: 'settings'; entry: Entry }
@@ -535,7 +536,7 @@ export default function App() {
                 aria-label="Back to Settings wheel" title="Back to Settings wheel"><ArrowLeft size={20}/></button>
               <div>
                 <div className="overline">KREIS SETTINGS</div>
-                <h1>{settingsCategoryTitle(settingsSection)} <small>0.6.2</small></h1>
+                <h1>{settingsCategoryTitle(settingsSection)} <small>0.6.3</small></h1>
                 <p>{SETTINGS_CATEGORIES.find(category => category.key === settingsSection)?.description}</p>
               </div>
             </div>
@@ -719,15 +720,10 @@ export default function App() {
                       )}
                     </>
                   )}
-                  <label>Icon
-                    <select value={draft.icon} onChange={event => setDraft({...draft, icon: event.target.value})}>
-                      {Object.keys(icons).map(name => <option key={name} value={name}>{name}</option>)}
-                    </select>
-                  </label>
-                  <label>Color
-                    <input className="color-input" type="color" value={draft.color}
-                      onChange={event => setDraft({...draft, color: event.target.value})}/>
-                  </label>
+                  <IconPicker value={draft.icon} color={draft.color}
+                    onChange={icon => setDraft(current => current ? {...current, icon} : current)}/>
+                  <ColorPicker value={draft.color}
+                    onChange={color => setDraft(current => current ? {...current, color} : current)}/>
                 </div>
                 {draft.type === 'group' && <p className="helper">Once saved, edit any shortcut to assign it to this group.</p>}
                 {error && <p className="dialog-error" role="alert">{error}</p>}
