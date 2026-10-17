@@ -204,3 +204,25 @@ No cloud, no account, and no remote telemetry. The pairing key is local. The ext
 ## License
 
 No license selected yet. Public repository visibility does not automatically grant rights to redistribute code.
+
+## Windows build integrity and checksums
+
+Windows installers are built by GitHub Actions from the `main` branch. The **Kreis-Windows-installer** workflow artifact ZIP includes:
+
+- `Kreis_<version>_x64-setup.exe`, the NSIS installer.
+- `SHA256SUMS.txt`, containing the SHA-256 hash of **the installer EXE**, not the containing workflow artifact ZIP.
+
+After extracting the artifact, verify the installer in PowerShell from the extracted folder:
+
+```powershell
+$line = (Get-Content .\SHA256SUMS.txt | Select-Object -First 1).Trim()
+$parts = $line -split ' \*', 2
+if ($parts.Count -ne 2) { throw 'Invalid SHA256SUMS.txt format' }
+$actual = (Get-FileHash -LiteralPath $parts[1] -Algorithm SHA256).Hash
+if ($actual -ine $parts[0]) { throw 'Installer SHA-256 mismatch' }
+Write-Host 'Kreis installer checksum verified.'
+```
+
+A matching checksum detects corruption or a mismatch between the EXE and its manifest, but is **not** the same thing as code signing or a malware-free guarantee. Verify that the archive came from the expected GitHub Actions run.
+
+The repository commits `package-lock.json` and `src-tauri/Cargo.lock`. Both Windows workflows use `npm ci`, check Cargo's `--locked` resolution, and fail if either lockfile changes during the build. The runner image, Node, Rust, and GitHub Actions dependencies are version-pinned for better repeatability. Update lockfiles and toolchain pins intentionally when upgrading dependencies or patching the build environment.
