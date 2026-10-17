@@ -6,6 +6,7 @@ import { load, type Store } from '@tauri-apps/plugin-store';
 import { ArrowLeft, Check, ChevronDown, CircleHelp, Copy, Minus, Plus, RotateCcw, Save, Settings2, Trash2, X } from 'lucide-react';
 import { focusAppWindow, focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, hideWheel, launch, startHubDrag, listAppWindows, openFolder, openNewBrowserTab, toggleWheel, type AppWindow, type BrowserTab, type ContextAdd, takeStartupContext, windowsContextMenuEnabled, setWindowsContextMenu } from './bridge';
 import { icons } from './icons';
+import { createStarterEntries, selectInitialSettings } from './starterSettings.mjs';
 import { DEFAULT_APPEARANCE, DEFAULT_SETTINGS, WHEEL_FONTS, normalizeAppearance, wheelFontStack, type Entry, type Settings, type WheelAppearance, type WheelFont, validateEntry } from './types';
 import RadialWheel, { type WheelContextAction, type WheelOption } from './RadialWheel';
 import WheelItemDialog, { type WheelEditMode } from './WheelItemDialog';
@@ -132,11 +133,15 @@ export default function App() {
       try {
         const loaded = await load('kreis.json', { autoSave: false });
         const saved = await loaded.get<Settings>('settings');
-        const next: Settings = saved?.entries && Array.isArray(saved.entries)
-          ? { ...DEFAULT_SETTINGS, ...saved, appearance: normalizeAppearance(saved.appearance) }
-          : DEFAULT_SETTINGS;
+        const { settings: next, isFirstRun } = selectInitialSettings(saved, DEFAULT_SETTINGS, normalizeAppearance);
         if (disposed) return;
         store.current = loaded;
+        // Persist first-run data immediately so later updates never replace an
+        // untouched starter layout. An explicit saved empty array stays empty.
+        if (isFirstRun) {
+          await loaded.set('settings', next);
+          await loaded.save();
+        }
         latestSettings.current = next;
         setSettings(next);
         setAppearanceDraft(next.appearance);
@@ -854,7 +859,7 @@ export default function App() {
                 </label>
               </div>
               <div className="appearance-preview" style={{ fontFamily: wheelFontStack(appearanceDraft.fontFamily) }}>
-                <span className="sample-label" style={{ fontSize: appearanceDraft.labelSize }}>ChatGPT · Runagaldr</span>
+                <span className="sample-label" style={{ fontSize: appearanceDraft.labelSize }}>Google · Wikipedia</span>
                 <span className="sample-center" style={{ fontSize: appearanceDraft.centerSize }}>KREIS</span>
               </div>
               <p className="helper">Uses fonts installed on your PC, with Segoe UI as a fallback. Larger fonts may abbreviate long tab titles; the full title stays in the tooltip.</p>
@@ -929,7 +934,7 @@ export default function App() {
             </section>}
             {settingsSection === 'connection' && <section className="setting-section"><div className="section-title"><h2>Browser connection</h2><button className="secondary" onClick={() => void getProfiles().then(setProfiles)}>Refresh</button></div><div className="profiles"><div>Work <strong className={profiles.includes('Work') ? 'online' : 'offline'}>{profiles.includes('Work') ? 'Connected' : 'Not connected'}</strong></div><div>Personal <strong className={profiles.includes('Personal') ? 'online' : 'offline'}>{profiles.includes('Personal') ? 'Connected' : 'Not connected'}</strong></div></div><label className="helper" htmlFor="pairing-key">Pairing key (paste into each Vivaldi profile's Kreis extension)</label><div className="shortcut-row"><input id="pairing-key" readOnly type="password" value={pairingKey}/><button className="secondary" onClick={() => void navigator.clipboard.writeText(pairingKey)}><Copy size={15}/> Copy</button></div><p className="helper">The extension switches to existing tabs, including tabs in different Vivaldi windows. When disconnected, Kreis opens the URL with your default browser instead.</p></section>}
             <div className="bottom-actions">
-              {settingsSection === 'shortcuts' && <button className="secondary" onClick={() => void persist({...settings, entries: DEFAULT_SETTINGS.entries})}><RotateCcw size={15}/> Restore sample entries</button>}
+              {settingsSection === 'shortcuts' && <button className="secondary" onClick={() => void persist({...settings, entries: createStarterEntries()})}><RotateCcw size={15}/> Restore starter shortcuts</button>}
               <button className="primary" onClick={() => void backToSettingsWheel()}><ArrowLeft size={16}/> Back to settings</button>
             </div>
           </div>
@@ -944,7 +949,7 @@ export default function App() {
                   <label>Label
                     <input value={draft.title} maxLength={30}
                       onChange={event => setDraft({...draft, title: event.target.value})}
-                      placeholder={draft.type === 'group' ? 'IHM' : 'My favorite tab'}/>
+                      placeholder={draft.type === 'group' ? 'My group' : 'My favorite tab'}/>
                   </label>
                   <label>Type
                     <select value={draft.type} disabled={Boolean(draft.id)}
@@ -976,7 +981,7 @@ export default function App() {
                         {draft.type === 'browser' ? 'Tab title contains (optional)' : 'Window title contains (optional)'}
                         <input value={draft.windowTitle || ''}
                           onChange={event => setDraft({...draft, windowTitle: event.target.value})}
-                          placeholder={draft.type === 'browser' ? 'For example: IHM' : 'For example: immaculate-heart-of-mary'}/>
+                          placeholder={draft.type === 'browser' ? 'For example: docs' : 'For example: release notes'}/>
                         <small className="helper">
                           {draft.type === 'browser'
                             ? 'Matches both the URL and this text in the tab title (case-insensitive). Leave blank for all matching tabs.'
