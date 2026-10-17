@@ -332,6 +332,8 @@ input::placeholder { color: #687692; }
 .quick-add-preview small { color: #9eb2ce; font-size: 10px; }
 .quick-add-appearance-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 188px); gap: 12px; }
 .quick-add-appearance-fields .appearance-field { min-width: 0; }
+/* Give the searchable gallery the full scroll-panel width when opened. */
+.quick-add-appearance-fields:has(.icon-picker-gallery) { grid-template-columns: minmax(0, 1fr); }
 .quick-add-appearance-fields .icon-picker-trigger { min-width: 0; }
 .quick-add-appearance-fields .icon-picker-preview { width: 45px; flex-basis: 45px; }
 .quick-add-appearance-fields .icon-picker-trigger-text { overflow: hidden; }
