@@ -11,6 +11,8 @@ import RadialWheel, { type WheelOption } from './RadialWheel';
 import { filterByTitle } from './titleFilter.mjs';
 import { SETTINGS_CATEGORIES, settingsCategoryTitle, type SettingsCategory } from './settingsCategories';
 import { ColorPicker, IconPicker } from './ShortcutAppearancePicker';
+import { eligibleParentGroups, flattenHierarchy, getChildren, removeGroup, suggestParent, validateHierarchy } from './groupHierarchy.mjs';
+import type { CSSProperties } from 'react';
 
 type WheelLevel =
   | { kind: 'settings'; entry: Entry }
@@ -381,53 +383,36 @@ export default function App() {
   }
 
   function childrenFor(groupId: string) {
-    return settings.entries.filter(entry => entry.type !== 'group' && entry.groupId === groupId);
+    return getChildren(settings.entries, groupId);
   }
 
   async function saveEntry() {
     if (!draft) return;
     const problem = validateEntry(draft);
     if (problem) return setError(problem);
-    const groups = settings.entries.filter(entry => entry.type === 'group');
-    if (draft.type !== 'group' && draft.groupId && !groups.some(group => group.id === draft.groupId)) {
-      return setError('Select an existing group.');
-    }
     const entry: Entry = {
       ...draft,
       id: draft.id || crypto.randomUUID(),
       title: draft.title.trim(),
       target: draft.type === 'group' ? '' : draft.target.trim(),
-      groupId: draft.type === 'group' ? undefined : draft.groupId || undefined,
-      windowTitle: draft.type === 'app' || draft.type === 'browser' ? draft.windowTitle?.trim() || undefined : undefined
+      // Groups and shortcuts share the same parent ID for unlimited sub-Kreise.
+      groupId: draft.groupId || undefined,
+      windowTitle: draft.type === 'app' || draft.type === 'browser'
+        ? draft.windowTitle?.trim() || undefined : undefined
     };
     const entries = draft.id
       ? settings.entries.map(current => current.id === draft.id ? entry : current)
       : [...settings.entries, entry];
-    const rootCount = entries.filter(item => !item.groupId).length;
-    if (rootCount > MAX_ITEMS_PER_WHEEL) return setError('The main wheel can hold 12 shortcuts. Move an entry into a group first.');
-    for (const group of entries.filter(item => item.type === 'group')) {
-      if (entries.filter(item => item.groupId === group.id).length > MAX_ITEMS_PER_WHEEL) {
-        return setError(`The ${group.title} group already has 12 shortcuts.`);
-      }
-    }
+    const hierarchyError = validateHierarchy(entries, MAX_ITEMS_PER_WHEEL);
+    if (hierarchyError) return setError(hierarchyError);
     try { await persist({ ...settings, entries }); setDraft(null); setError(''); }
     catch (cause) { setError(String(cause)); }
   }
 
   async function deleteEntry(id: string) {
-    const removed = settings.entries.find(entry => entry.id === id);
-    if (!removed) return;
-    let entries = settings.entries.filter(entry => entry.id !== id);
-    if (removed.type === 'group') {
-      // Keep users' shortcuts when a group is removed.
-      entries = entries.map(entry =>
-        entry.groupId === id ? { ...entry, groupId: undefined } : entry
-      );
-      if (entries.filter(entry => !entry.groupId).length > MAX_ITEMS_PER_WHEEL) {
-        return setError('Cannot remove this group: the main wheel would have over 12 items. Move or remove some members first.');
-      }
-    }
-    try { await persist({ ...settings, entries }); setError(''); }
+    const result = removeGroup(settings.entries, id, MAX_ITEMS_PER_WHEEL);
+    if (result.error) return setError(result.error);
+    try { await persist({ ...settings, entries: result.entries }); setError(''); }
     catch (cause) { setError(String(cause)); }
   }
 
@@ -446,11 +431,10 @@ export default function App() {
     catch (cause) { setError(String(cause)); }
   }
 
-  const groupIds = new Set(settings.entries.filter(entry => entry.type === 'group').map(entry => entry.id));
-  const rootEntries = settings.entries.filter(entry => !entry.groupId || !groupIds.has(entry.groupId));
-  const arrangedEntries = rootEntries.flatMap(entry =>
-    entry.type === 'group' ? [entry, ...childrenFor(entry.id)] : [entry]
-  );
+  const rootEntries = getChildren(settings.entries);
+  const arrangedEntries = flattenHierarchy(settings.entries);
+  const defaultNewParent = suggestParent(settings.entries, MAX_ITEMS_PER_WHEEL);
+  const canAddToAnyWheel = rootEntries.length < MAX_ITEMS_PER_WHEEL || defaultNewParent !== undefined;
   const activeLevel = levels[levels.length - 1];
   const currentOptions = activeLevel?.kind === 'group'
     ? childrenFor(activeLevel.entry.id) : rootEntries;
@@ -536,7 +520,7 @@ export default function App() {
                 aria-label="Back to Settings wheel" title="Back to Settings wheel"><ArrowLeft size={20}/></button>
               <div>
                 <div className="overline">KREIS SETTINGS</div>
-                <h1>{settingsCategoryTitle(settingsSection)} <small>0.6.3</small></h1>
+                <h1>{settingsCategoryTitle(settingsSection)} <small>0.7.0</small></h1>
                 <p>{SETTINGS_CATEGORIES.find(category => category.key === settingsSection)?.description}</p>
               </div>
             </div>
@@ -585,40 +569,42 @@ export default function App() {
               <div className="section-title">
                 <h2>Shortcuts and groups <span className="count">{rootEntries.length}/12 main · {settings.entries.length} total</span></h2>
                 <div className="section-buttons">
-                  <button className="secondary" disabled={rootEntries.length >= MAX_ITEMS_PER_WHEEL}
-                    onClick={() => { setDraft({ ...DEFAULT_GROUP }); setError(''); }}>
+                  <button className="secondary" disabled={!canAddToAnyWheel}
+                    onClick={() => { setDraft({ ...DEFAULT_GROUP, groupId: defaultNewParent }); setError(''); }}>
                     <Plus size={16}/> Add group
                   </button>
-                  <button className="secondary"
-                    disabled={rootEntries.length >= MAX_ITEMS_PER_WHEEL && groupIds.size === 0}
-                    onClick={() => {
-                      setDraft({ ...DEFAULT_NEW, groupId: rootEntries.length >= MAX_ITEMS_PER_WHEEL
-                        ? settings.entries.find(entry => entry.type === 'group')?.id : undefined });
-                      setError('');
-                    }}>
+                  <button className="secondary" disabled={!canAddToAnyWheel}
+                    onClick={() => { setDraft({ ...DEFAULT_NEW, groupId: defaultNewParent }); setError(''); }}>
                     <Plus size={16}/> Add shortcut
                   </button>
                 </div>
               </div>
-              <p className="helper">Create a group, then edit a shortcut and set its placement to that group. Groups keep the main wheel tidy; browser and desktop-app shortcuts still open their own matching tab/window wheels.</p>
+              <p className="helper">Build your own structure, like Work → IHM → Frontend or Personal → Runagaldr → VS Code. Edit any entry to choose its parent group, or click + on a group to add a subgroup. Each Kreis holds up to 12 items; Back moves up one level.</p>
               <div className="entry-list">
-                {arrangedEntries.map(entry => {
+                {arrangedEntries.map(({ entry, depth }) => {
                   const Icon = icons[entry.icon] || icons.rocket;
                   const siblings = settings.entries.filter(item => (item.groupId || '') === (entry.groupId || ''));
                   const siblingIndex = siblings.findIndex(item => item.id === entry.id);
                   const isGroup = entry.type === 'group';
                   return (
-                    <div className={`entry-row${isGroup ? ' entry-row--group' : ''}${entry.groupId ? ' entry-row--child' : ''}`} key={entry.id}>
+                    <div className={`entry-row${isGroup ? ' entry-row--group' : ''}${depth > 0 ? ' entry-row--child' : ''}`} key={entry.id}
+                      style={{ '--indent-size': `${Math.min(depth * 22, 132)}px` } as CSSProperties}>
                       <div className="entry-icon" style={{background: entry.color}}><Icon size={20}/></div>
                       <div className="entry-name">
                         <strong>{entry.title}</strong>
-                        <small>{isGroup ? `Group · ${childrenFor(entry.id).length} shortcuts`
+                        <small>{isGroup ? `Group · ${childrenFor(entry.id).length} items`
                           : entry.type === 'app' ? 'Windows app' : entry.type === 'folder' ? 'File Explorer folder' : `Vivaldi · ${entry.profile}`}</small>
                       </div>
                       <span className="entry-target" title={entry.target}>
-                        {isGroup ? 'Nested Kreis' : entry.target}
+                        {isGroup ? (entry.groupId ? 'Sub-Kreis' : 'Group Kreis') : entry.target}
                       </span>
                       <div className="entry-actions">
+                        {isGroup && <button className="tiny add-subgroup" title={`Create a subgroup inside ${entry.title}`}
+                          aria-label={`Add subgroup inside ${entry.title}`}
+                          disabled={childrenFor(entry.id).length >= MAX_ITEMS_PER_WHEEL}
+                          onClick={() => { setDraft({ ...DEFAULT_GROUP, groupId: entry.id }); setError(''); }}>
+                          <Plus size={15}/>
+                        </button>}
                         <button className="tiny" aria-label={`Move ${entry.title} up`} disabled={siblingIndex <= 0}
                           onClick={() => void moveEntry(entry.id, -1)}>↑</button>
                         <button className="tiny" aria-label={`Move ${entry.title} down`} disabled={siblingIndex >= siblings.length - 1}
@@ -691,15 +677,6 @@ export default function App() {
                       {draft.type === 'folder' && (
                         <p className="helper wide">Kreis focuses an already-open Downloads/other folder when possible, otherwise adds a tab to an existing File Explorer window on Windows 11. If no Explorer window exists, it opens a new one. Supports shell:Downloads (including relocated Downloads), absolute paths, environment variables, and ~ paths.</p>
                       )}
-                      <label>Placement
-                        <select value={draft.groupId || ''}
-                          onChange={event => setDraft({...draft, groupId: event.target.value || undefined})}>
-                          <option value="">Main Kreis</option>
-                          {settings.entries.filter(entry => entry.type === 'group').map(group => (
-                            <option key={group.id} value={group.id}>{group.title}</option>
-                          ))}
-                        </select>
-                      </label>
                       {draft.type === 'browser' && (
                         <>
                           <label>Vivaldi profile
@@ -720,12 +697,23 @@ export default function App() {
                       )}
                     </>
                   )}
+                      <label>{draft.type === 'group' ? 'Parent group' : 'Placement'}
+                        <select value={draft.groupId || ''}
+                          onChange={event => setDraft({...draft, groupId: event.target.value || undefined})}>
+                          <option value="">Main Kreis (top level)</option>
+                          {eligibleParentGroups(settings.entries, draft.id).map(group => (
+                            <option key={group.id} value={group.id}>
+                              {`${'　'.repeat(group.depth)}↳ ${group.title}`}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                   <IconPicker value={draft.icon} color={draft.color}
                     onChange={icon => setDraft(current => current ? {...current, icon} : current)}/>
                   <ColorPicker value={draft.color}
                     onChange={color => setDraft(current => current ? {...current, color} : current)}/>
                 </div>
-                {draft.type === 'group' && <p className="helper">Once saved, edit any shortcut to assign it to this group.</p>}
+                {draft.type === 'group' && <p className="helper">Groups can contain shortcuts and other groups. Pick a parent to nest this Kreis, or leave it at the top level. Its descendants cannot be selected as parents.</p>}
                 {error && <p className="dialog-error" role="alert">{error}</p>}
                 <div className="dialog-actions">
                   <button className="secondary" onClick={() => setDraft(null)}>Cancel</button>
