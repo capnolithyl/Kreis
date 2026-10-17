@@ -27,9 +27,32 @@ try {
 
     Add-Type -AssemblyName UIAutomationClient
 
+    # Explorer does not consistently expose the tab strip through UI Automation
+    # while its parent window is minimized. Only restore windows whose Shell
+    # entries already match the exact requested directory.
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class KreisExplorerWin32 {
+    [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hwnd, int command);
+}
+'@
+
     foreach ($handle in $matches) {
         try {
-            $root = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$handle)
+            $hwnd = [IntPtr]$handle
+            if ([KreisExplorerWin32]::IsIconic($hwnd)) {
+                [KreisExplorerWin32]::ShowWindowAsync($hwnd, 9) | Out-Null # SW_RESTORE
+                # Give Explorer's tab strip time to reappear before querying UIA.
+                for ($attempt = 0; $attempt -lt 12 -and [KreisExplorerWin32]::IsIconic($hwnd); $attempt++) {
+                    Start-Sleep -Milliseconds 50
+                }
+                if ([KreisExplorerWin32]::IsIconic($hwnd)) { continue }
+                Start-Sleep -Milliseconds 150
+            }
+
+            $root = [System.Windows.Automation.AutomationElement]::FromHandle($hwnd)
             if ($null -eq $root) { continue }
 
             $condition = [System.Windows.Automation.PropertyCondition]::new(
