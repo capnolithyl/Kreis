@@ -1,8 +1,10 @@
-import { ArrowLeft, Plus, Settings2, X } from 'lucide-react';
+import { ArrowLeft, Clipboard, Copy, FolderInput, Palette, Pencil, Plus, Settings2, Shapes, Trash2, X } from 'lucide-react';
 import { icons } from './icons';
-import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { wheelDropIntent } from './groupDragDrop.mjs';
 import { type WheelAppearance, wheelFontStack } from './types';
+
+export type WheelContextAction = 'rename' | 'color' | 'icon' | 'details' | 'move' | 'duplicate' | 'copy' | 'delete';
 
 export type WheelOption = {
   key: string;
@@ -32,6 +34,7 @@ type RadialWheelProps = {
   allowRearrange?: boolean;
   allowMoveUp?: boolean;
   onDropWedge?: (sourceId: string, targetId: string | null, mode: 'before' | 'after' | 'inside' | 'combine' | 'root') => void;
+  onContextAction?: (entryId: string, action: WheelContextAction) => void;
   groupCreation?: { sourceTitle: string; targetTitle: string; name: string } | null;
   onGroupNameChange?: (name: string) => void;
   onConfirmGroup?: () => void;
@@ -131,10 +134,26 @@ function labelLines(label: string, count: number, fontSize: number): string[] {
 export default function RadialWheel({
   buttons, appearance, submenuTitle, tabCount, countLabel = 'tabs', busy, error, page, pageCount,
   onBack, onSettings, onClose, onPageChange, allowRearrange = false,
-  allowMoveUp = false, onDropWedge, groupCreation, onGroupNameChange,
+  allowMoveUp = false, onDropWedge, onContextAction, groupCreation, onGroupNameChange,
   onConfirmGroup, onCancelGroup, feedback, canUndo, onUndo
 }: RadialWheelProps) {
   const isSubmenu = Boolean(submenuTitle);
+  const [contextMenu, setContextMenu] = useState<{ entryId: string; x: number; y: number } | null>(null);
+  const contextButton = contextMenu ? buttons.find(button => button.key === contextMenu.entryId) : undefined;
+  // Catch Escape before the app-level handler that otherwise closes the launcher.
+  useEffect(() => {
+    if (!contextMenu) return;
+    const dismiss = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setContextMenu(null);
+      }
+    };
+    document.addEventListener('keydown', dismiss, true);
+    return () => document.removeEventListener('keydown', dismiss, true);
+  }, [contextMenu]);
+
   const [dragOver, setDragOver] = useState<{
     sourceId: string; targetId: string | null;
     mode: 'before' | 'after' | 'inside' | 'combine' | 'root';
@@ -148,7 +167,7 @@ export default function RadialWheel({
     mode: 'before' | 'after' | 'inside' | 'combine' | 'root';
   } | null>(null);
   const suppressClickUntil = useRef(0);
-  const canDrag = allowRearrange && !busy && !groupCreation && buttons.length > 0;
+  const canDrag = allowRearrange && !busy && !groupCreation && !contextMenu && buttons.length > 0;
 
   function coordinate(event: ReactPointerEvent<SVGSVGElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -224,6 +243,7 @@ export default function RadialWheel({
       } as CSSProperties}>
       <div className="wheel-enter">
         <svg className="wheel-svg" viewBox="0 0 600 600" width="600" height="600" aria-label="Radial shortcuts"
+          onContextMenu={event => event.preventDefault()}
           onPointerMove={updateDrag}
           onPointerUp={event => endDrag(event)}
           onPointerCancel={event => endDrag(event, true)}>
@@ -264,12 +284,34 @@ export default function RadialWheel({
                   // A normal click must still select the original segment.
                   event.currentTarget.setPointerCapture(event.pointerId);
                 }}
+                onContextMenu={event => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (!allowRearrange || !onContextAction || busy || groupCreation) return;
+                  const rect = event.currentTarget.ownerSVGElement?.getBoundingClientRect();
+                  if (!rect) return;
+                  const scaleX = 600 / rect.width;
+                  const scaleY = 600 / rect.height;
+                  const x = (event.clientX - rect.left) * scaleX;
+                  const y = (event.clientY - rect.top) * scaleY;
+                  // Clamp the 210px-wide, ~330px-high menu inside the transparent Tauri window.
+                  setContextMenu({ entryId: button.key, x: Math.max(8, Math.min(382, x)),
+                    y: Math.max(8, Math.min(258, y)) });
+                }}
                 onClick={() => {
-                  if (Date.now() < suppressClickUntil.current) return;
+                  if (contextMenu || Date.now() < suppressClickUntil.current) return;
                   if (!busy && !groupCreation) button.onSelect();
                 }}
                 onKeyDown={event => {
-                  if (!groupCreation) activateWithKeyboard(event, button.onSelect);
+                  if (allowRearrange && onContextAction && !busy && !groupCreation &&
+                      (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10'))) {
+                    event.preventDefault();
+                    const x = Math.max(8, Math.min(382, labelPoint.x));
+                    const y = Math.max(8, Math.min(258, labelPoint.y));
+                    setContextMenu({ entryId: button.key, x, y });
+                  } else if (!groupCreation && !contextMenu) {
+                    activateWithKeyboard(event, button.onSelect);
+                  }
                 }}
               >
                 <title>{button.tooltip}</title>
@@ -361,6 +403,38 @@ export default function RadialWheel({
           <span>{feedback}</span>
           {canUndo && <button type="button" onClick={onUndo}>Undo</button>}
         </div>
+      )}
+      {contextMenu && contextButton && onContextAction && (
+        <>
+          <button type="button" className="wheel-context-dismiss"
+            onClick={() => setContextMenu(null)} aria-label="Dismiss shortcut context menu"/>
+          <div className="wheel-context-menu" role="menu"
+            aria-label={`Actions for ${contextButton.title}`}
+            style={{ left: contextMenu.x, top: contextMenu.y }}>
+            <div className="wheel-context-title" title={contextButton.title}>{contextButton.title}</div>
+            {([
+              ['rename', 'Rename', Pencil],
+              ['color', 'Change color', Palette],
+              ['icon', 'Change icon', Shapes],
+              ['details', 'Edit details', Settings2],
+              ['move', 'Move to group', FolderInput],
+              ...(!contextButton.isGroup ? [
+                ['duplicate', 'Duplicate', Copy],
+                ['copy', 'Copy target', Clipboard]
+              ] : []),
+              ['delete', contextButton.isGroup ? 'Delete group' : 'Delete shortcut', Trash2]
+            ] as [WheelContextAction, string, typeof Pencil][]).map(([action, label, Icon]) => (
+              <button type="button" key={action} role="menuitem"
+                className={action === 'delete' ? 'is-danger' : ''}
+                onClick={() => {
+                  setContextMenu(null);
+                  onContextAction(contextMenu.entryId, action);
+                }}>
+                <Icon size={15} aria-hidden="true"/>{label}
+              </button>
+            ))}
+          </div>
+        </>
       )}
       {groupCreation && (
         <div className="wheel-group-overlay">
