@@ -24,7 +24,7 @@ export default function BrowserProfilesPanel({
   const [replacement, setReplacement] = useState('');
   const deletingProfile = profiles.find(p => p.id === deleting);
   const affected = entries.filter(entry =>
-    entry.type === 'browser' && (entry.profileId !== undefined ? entry.profileId : entry.profile) === deleting
+    (entry.type === 'browser' || entry.type === 'vivaldi-stack') && (entry.profileId !== undefined ? entry.profileId : entry.profile) === deleting
   );
 
   return (
@@ -54,7 +54,7 @@ export default function BrowserProfilesPanel({
         {profiles.length === 0 && <p className="helper">No browser profiles configured. Add one above to get started.</p>}
         {profiles.map(profile => {
           const browser = BROWSER_OPTIONS.find(b => b.id === profile.browserId);
-          const used = entries.filter(entry => entry.type === 'browser' &&
+          const used = entries.filter(entry => (entry.type === 'browser' || entry.type === 'vivaldi-stack') &&
             (entry.profileId !== undefined ? entry.profileId : entry.profile) === profile.id).length;
           return <div className="browser-profile-row" key={profile.id}>
             <div className="browser-profile-details">
