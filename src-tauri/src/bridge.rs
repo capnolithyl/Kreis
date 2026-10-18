@@ -114,7 +114,9 @@ impl Bridge {
             return Ok(None);
         }
 
-        let result = timeout(Duration::from_millis(1800), receiver).await;
+        // Native stack recreation creates two tabs and may need more than 1.8 seconds.
+        let wait = if mode == "stack" { Duration::from_secs(12) } else { Duration::from_millis(1800) };
+        let result = timeout(wait, receiver).await;
         self.pending.lock().map_err(|e| e.to_string())?.remove(&request_id);
         match result {
             Ok(Ok(Ok(tabs))) => Ok(Some(tabs)),
