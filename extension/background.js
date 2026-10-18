@@ -223,7 +223,12 @@ async function connect() {
             })
             .catch(error => {
               setStatus('Tab lookup failed: ' + String(error));
-              // No result means the desktop will use its legacy fallback.
+              // Explicit errors let Kreis report unsupported Vivaldi metadata instead
+              // of silently opening another tab or pretending the stack does not exist.
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'tabs-result', requestId: message.requestId,
+                  error: String(error) }));
+              }
               console.error('Kreis tab lookup failed', error);
             });
         }
