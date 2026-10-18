@@ -98,7 +98,7 @@ impl Bridge {
 
     /// A browser profile searches its own windows. Correlated replies avoid cross-profile
     /// responses, and the timeout also supports users who have not reloaded the extension.
-    pub async fn matching_tabs(&self, profile: &str, url: &str, mode: &str) -> Option<Vec<BrowserTab>> {
+    pub async fn matching_tabs(&self, profile: &str, url: &str, mode: &str, recreate: bool, start_url: &str) -> Option<Vec<BrowserTab>> {
         let (sender, receiver) = oneshot::channel();
         let request_id = uuid::Uuid::new_v4().to_string();
         self.pending.lock().ok()?.insert(request_id.clone(), PendingLookup {
@@ -106,7 +106,8 @@ impl Bridge {
         });
 
         let sent = self.command(profile, json!({
-            "type": "lookup-tabs", "requestId": request_id, "url": url, "match": mode
+            "type": "lookup-tabs", "requestId": request_id, "url": url, "match": mode,
+            "recreateStack": recreate, "startUrl": start_url
         }));
         if !sent {
             self.pending.lock().ok()?.remove(&request_id);

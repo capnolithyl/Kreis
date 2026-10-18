@@ -104,6 +104,13 @@ fn focus_application_window(executable: String, window_id: String) -> Result<(),
 }
 
 fn validate_browser(bridge: &Bridge, url: &str, profile: &str, mode: &str) -> Result<(), String> {
+    if mode == "stack" {
+        if url.trim().is_empty() || url.chars().count() > 60 { return Err("Invalid native Tab Stack name".into()); }
+        if bridge.profile(profile).is_none_or(|p| p.browser_id != "vivaldi") {
+            return Err("Native Tab Stacks require a configured Vivaldi browser profile.".into());
+        }
+        return Ok(());
+    }
     let parsed = url::Url::parse(url).map_err(|_| "Invalid website URL")?;
     if !matches!(parsed.scheme(), "http" | "https") {
         return Err("Only HTTP and HTTPS links are allowed".into());
@@ -137,10 +144,17 @@ async fn query_browser_tabs(
     bridge: tauri::State<'_, Arc<Bridge>>,
     url: String,
     profile: String,
-    match_mode: String
+    match_mode: String,
+    recreate_stack: Option<bool>,
+    start_url: Option<String>
 ) -> Result<Option<Vec<bridge::BrowserTab>>, String> {
     validate_browser(&bridge, &url, &profile, &match_mode)?;
-    Ok(bridge.matching_tabs(&profile, &url, &match_mode).await)
+    let start_url = start_url.unwrap_or_default();
+    if match_mode == "stack" && !start_url.trim().is_empty() {
+        let parsed = url::Url::parse(&start_url).map_err(|_| "Invalid stack starting URL")?;
+        if !matches!(parsed.scheme(), "http" | "https") { return Err("Starting URL must use HTTP(S).".into()); }
+    }
+    Ok(bridge.matching_tabs(&profile, &url, &match_mode, recreate_stack.unwrap_or(false), &start_url).await)
 }
 
 #[tauri::command]

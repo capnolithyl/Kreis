@@ -33,7 +33,7 @@ export function normalizeBrowserSettings(settings) {
   }
   // An explicit empty list is intentional; never recreate deleted profiles.
   const entries = settings.entries.map(entry => {
-    if (entry.type !== 'browser') return entry;
+    if (entry.type !== 'browser' && entry.type !== 'vivaldi-stack') return entry;
     const profileId = entry.profileId !== undefined ? entry.profileId : entry.profile || 'Work';
     const profile = profiles.find(p => p.id === profileId);
     return {
@@ -92,7 +92,7 @@ export function deleteBrowserProfile(settings, id, replacementId = '') {
       ...settings,
       browserProfiles: settings.browserProfiles.filter(p => p.id !== id),
       entries: settings.entries.map(entry =>
-        entry.type === 'browser' && (entry.profileId !== undefined ? entry.profileId : entry.profile) === id
+        (entry.type === 'browser' || entry.type === 'vivaldi-stack') && (entry.profileId !== undefined ? entry.profileId : entry.profile) === id
           ? assignProfile(entry, replacement)
           : entry)
     }

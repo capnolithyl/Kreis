@@ -1,13 +1,13 @@
 {
   "name": "kreis",
   "private": true,
-  "version": "0.12.1",
+  "version": "0.12.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "tauri": "tauri",
-    "check:extension": "node --check extension/background.js && node --check extension/popup.js && node --check extension/tab-finder.js && node --test extension/tab-finder.test.js",
+    "check:extension": "node --check extension/background.js && node --check extension/popup.js && node --check extension/tab-finder.js && node --test extension/tab-finder.test.js extension/vivaldi-stack.test.js",
     "check:title-filter": "node --test tests/title-filter.test.mjs",
     "check:groups": "node --test tests/group-hierarchy.test.mjs",
     "check:wheel-drag": "node --test tests/group-drag-drop.test.mjs",
