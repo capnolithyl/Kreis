@@ -154,7 +154,7 @@ async fn query_browser_tabs(
         let parsed = url::Url::parse(&start_url).map_err(|_| "Invalid stack starting URL")?;
         if !matches!(parsed.scheme(), "http" | "https") { return Err("Starting URL must use HTTP(S).".into()); }
     }
-    Ok(bridge.matching_tabs(&profile, &url, &match_mode, recreate_stack.unwrap_or(false), &start_url).await)
+    bridge.matching_tabs(&profile, &url, &match_mode, recreate_stack.unwrap_or(false), &start_url).await
 }
 
 #[tauri::command]
