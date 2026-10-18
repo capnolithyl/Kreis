@@ -1076,7 +1076,8 @@ export default function App() {
                             recreateStack: false, stackStartUrl: undefined
                           } : {}),
                           icon: type === 'folder' ? DEFAULT_FOLDER.icon
-                            : type === 'group' ? 'folder' : draft.icon,
+                            : type === 'group' ? 'folder'
+                            : type === 'vivaldi-stack' ? DEFAULT_STACK.icon : draft.icon,
                           windowTitle: undefined
                         });
                       }}>
