@@ -33,6 +33,7 @@ const MAX_ITEMS_PER_WHEEL = 10;
 const SETTINGS_ENTRY: Entry = { id: 'kreis-settings', title: 'Settings', type: 'group', target: '', profile: 'Work', match: 'prefix', icon: 'settings', color: '#617cae' };
 const DEFAULT_FOLDER: Entry = { id: '', title: '', type: 'folder', target: 'shell:Downloads', profile: 'Work', match: 'prefix', icon: 'folder', color: '#c1a062' };
 const DEFAULT_GROUP: Entry = { id: '', title: '', type: 'group', target: '', profile: 'Work', match: 'prefix', icon: 'folder', color: '#6a8ec2' };
+const DEFAULT_STACK: Entry = { id: '', title: '', type: 'vivaldi-stack', target: '', profile: 'Work', profileId: 'Work', browserId: 'vivaldi', match: 'exact', icon: 'layers', color: '#6a8ec2', recreateStack: false };
 const DEFAULT_NEW: Entry = { id: '', title: '', type: 'browser', target: 'https://', profile: 'Work', match: 'prefix', icon: 'globe', color: '#6385d7' };
 const wheelSize = 600;
 const tabsPerPage = 7; // Keep the eighth slot for an explicit New Tab action.
@@ -418,6 +419,14 @@ export default function App() {
           const result = await launch(entry);
           if (result.details) setNotice(result.details);
         }
+      } else if (entry.type === 'vivaldi-stack') {
+        const profile = profileForEntry(entry, settings.browserProfiles);
+        if (!profile || profile.browserId !== 'vivaldi') throw new Error('Assign this shortcut to a Vivaldi browser profile.');
+        const tabs = await getMatchingTabs(entry);
+        if (generation !== selectionGeneration.current) return;
+        if (!tabs) throw new Error('Vivaldi companion did not respond. Update/reload extension v0.5.0 or check native stack support.');
+        if (!tabs.length) throw new Error('No open Vivaldi stack named "' + entry.target + '". Enable recreation in the shortcut if desired.');
+        await focusBrowserTab(entry.profileId ?? entry.profile, tabs[0].id);
       } else if (entry.type === 'folder') {
         await openFolder(entry.target);
         // The native command hides Kreis before sending Explorer keyboard
@@ -539,9 +548,11 @@ export default function App() {
     if (!draft) return;
     const problem = validateEntry(draft);
     if (problem) return setError(problem);
-    if (draft.type === 'browser' && !profileForEntry(draft, settings.browserProfiles)) {
+    if ((draft.type === 'browser' || draft.type === 'vivaldi-stack') && !profileForEntry(draft, settings.browserProfiles)) {
       return setError('Select a configured browser profile. You can add one under Settings → Connection.');
     }
+    if (draft.type === 'vivaldi-stack' && profileForEntry(draft, settings.browserProfiles)?.browserId !== 'vivaldi')
+      return setError('Choose a Vivaldi profile for native Tab Stacks.');
     const entry: Entry = {
       ...draft,
       id: draft.id || crypto.randomUUID(),
@@ -550,7 +561,8 @@ export default function App() {
       // Groups and shortcuts share the same parent ID for unlimited sub-Kreise.
       groupId: draft.groupId || undefined,
       windowTitle: draft.type === 'app' || draft.type === 'browser'
-        ? draft.windowTitle?.trim() || undefined : undefined
+        ? draft.windowTitle?.trim() || undefined : undefined,
+      stackStartUrl: draft.type === 'vivaldi-stack' ? draft.stackStartUrl?.trim() || undefined : undefined
     };
     const entries = draft.id
       ? settings.entries.map(current => current.id === draft.id ? entry : current)
@@ -782,7 +794,7 @@ export default function App() {
             key: entry.id, title: entry.title, color: entry.color, icon: entry.icon,
             isGroup: entry.type === 'group',
             tooltip: entry.type === 'group' ? `Open ${entry.title} group`
-              : `${entry.title} (${entry.type === 'browser' ? (profileForEntry(entry, settings.browserProfiles)?.name || 'Unassigned profile') : entry.type === 'folder' ? 'File Explorer' : 'Windows'})`,
+              : `${entry.title} (${(entry.type === 'browser' || entry.type === 'vivaldi-stack') ? (profileForEntry(entry, settings.browserProfiles)?.name || 'Unassigned profile') : entry.type === 'folder' ? 'File Explorer' : 'Windows'})`,
             onSelect: () => void selectEntry(entry)
           }));
 
@@ -1057,12 +1069,20 @@ export default function App() {
                           ...draft, type,
                           target: type === 'folder' ? DEFAULT_FOLDER.target
                             : type === 'app' ? 'Code.exe' : type === 'browser' ? 'https://' : '',
+                          ...(type === 'vivaldi-stack' ? {
+                            profileId: settings.browserProfiles.find(p => p.browserId === 'vivaldi')?.id || '',
+                            browserId: 'vivaldi' as const, profile: 'Work',
+                            icon: DEFAULT_STACK.icon, color: DEFAULT_STACK.color, match: 'exact' as const,
+                            recreateStack: false, stackStartUrl: undefined
+                          } : {}),
                           icon: type === 'folder' ? DEFAULT_FOLDER.icon
-                            : type === 'group' ? 'folder' : draft.icon,
+                            : type === 'group' ? 'folder'
+                            : type === 'vivaldi-stack' ? DEFAULT_STACK.icon : draft.icon,
                           windowTitle: undefined
                         });
                       }}>
                       <option value="browser">Browser tab</option>
+                      <option value="vivaldi-stack">Vivaldi named Tab Stack (experimental)</option>
                       <option value="app">Windows application</option>
                       <option value="folder">Windows folder</option>
                       <option value="group">Group</option>
@@ -1070,12 +1090,12 @@ export default function App() {
                   </label>
                   {draft.type !== 'group' && (
                     <>
-                      <label className="wide">{draft.type === 'browser' ? 'Website URL' : draft.type === 'folder' ? 'Folder path' : 'Executable name or full .exe path'}
+                      <label className="wide">{draft.type === 'browser' ? 'Website URL' : draft.type === 'vivaldi-stack' ? 'Stack name' : draft.type === 'folder' ? 'Folder path' : 'Executable name or full .exe path'}
                         <input value={draft.target}
                           onChange={event => setDraft({...draft, target: event.target.value})}
-                          placeholder={draft.type === 'browser' ? 'https://example.com/' : draft.type === 'folder' ? 'shell:Downloads' : 'Code.exe'}/>
+                          placeholder={draft.type === 'browser' ? 'https://example.com/' : draft.type === 'vivaldi-stack' ? 'Runagaldr' : draft.type === 'folder' ? 'shell:Downloads' : 'Code.exe'}/>
                       </label>
-                      {draft.type !== 'folder' && <label className="wide">
+                      {draft.type !== 'folder' && draft.type !== 'vivaldi-stack' && <label className="wide">
                         {draft.type === 'browser' ? 'Tab title contains (optional)' : 'Window title contains (optional)'}
                         <input value={draft.windowTitle || ''}
                           onChange={event => setDraft({...draft, windowTitle: event.target.value})}
@@ -1089,26 +1109,39 @@ export default function App() {
                       {draft.type === 'folder' && (
                         <p className="helper wide">Kreis focuses an already-open Downloads/other folder when possible, otherwise adds a tab to an existing File Explorer window on Windows 11. If no Explorer window exists, it opens a new one. Supports shell:Downloads (including relocated Downloads), absolute paths, environment variables, and ~ paths.</p>
                       )}
-                      {draft.type === 'browser' && (
+                      {(draft.type === 'browser' || draft.type === 'vivaldi-stack') && (
                         <>
                           <label>Browser and profile
                             <select value={draft.profileId !== undefined ? draft.profileId : draft.profile}
                               onChange={event => setDraft(assignProfile(draft, settings.browserProfiles.find(profile => profile.id === event.target.value) || null))}>
                               <option value="">Unassigned (cannot launch until assigned)</option>
-                              {settings.browserProfiles.map(profile =>
+                              {settings.browserProfiles.filter(profile => draft.type !== 'vivaldi-stack' || profile.browserId === 'vivaldi').map(profile =>
                                 <option key={profile.id} value={profile.id}>
                                   {BROWSER_OPTIONS.find(browser => browser.id === profile.browserId)?.name} · {profile.name}
                                 </option>)}
                             </select>
                           </label>
-                          <label>Tab matching
+                          {draft.type === 'browser' && <label>Tab matching
                             <select value={draft.match}
                               onChange={event => setDraft({...draft, match: event.target.value as Entry['match']})}>
                               <option value="prefix">URL path prefix (subpages too)</option>
                               <option value="exact">Exact URL (ignores hash)</option>
                               <option value="site">Website excluding /wp-admin/</option>
                             </select>
-                          </label>
+                          </label>}
+                          {draft.type === 'vivaldi-stack' && <div className="wide">
+                            <p className="helper">Focuses any tab in a native Vivaldi Tab Stack with this name. Experimental: Vivaldi's internal stack metadata may not be exposed to extensions.</p>
+                            <label className="shortcut-row">
+                              <input type="checkbox" checked={draft.recreateStack === true}
+                                onChange={event => setDraft({...draft, recreateStack: event.target.checked})}/>
+                              Create a new stack when missing (experimental)
+                            </label>
+                            {draft.recreateStack && <label>Starting URL (optional)
+                              <input value={draft.stackStartUrl || ''} placeholder="https://example.com/"
+                                onChange={event => setDraft({...draft, stackStartUrl: event.target.value})}/>
+                              <small className="helper">Creates two new tabs, optionally starting on this page. Closed tabs cannot be restored by name alone.</small>
+                            </label>}
+                          </div>}
                         </>
                       )}
                     </>

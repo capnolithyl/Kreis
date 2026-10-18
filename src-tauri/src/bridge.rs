@@ -41,7 +41,7 @@ pub struct BrowserTab {
 
 struct PendingLookup {
     profile: String,
-    sender: oneshot::Sender<Vec<BrowserTab>>,
+    sender: oneshot::Sender<Result<Vec<BrowserTab>, String>>,
 }
 
 pub struct Bridge {
@@ -98,26 +98,30 @@ impl Bridge {
 
     /// A browser profile searches its own windows. Correlated replies avoid cross-profile
     /// responses, and the timeout also supports users who have not reloaded the extension.
-    pub async fn matching_tabs(&self, profile: &str, url: &str, mode: &str) -> Option<Vec<BrowserTab>> {
+    pub async fn matching_tabs(&self, profile: &str, url: &str, mode: &str, recreate: bool, start_url: &str) -> Result<Option<Vec<BrowserTab>>, String> {
         let (sender, receiver) = oneshot::channel();
         let request_id = uuid::Uuid::new_v4().to_string();
-        self.pending.lock().ok()?.insert(request_id.clone(), PendingLookup {
+        self.pending.lock().map_err(|e| e.to_string())?.insert(request_id.clone(), PendingLookup {
             profile: profile.to_owned(), sender,
         });
 
         let sent = self.command(profile, json!({
-            "type": "lookup-tabs", "requestId": request_id, "url": url, "match": mode
+            "type": "lookup-tabs", "requestId": request_id, "url": url, "match": mode,
+            "recreateStack": recreate, "startUrl": start_url
         }));
         if !sent {
-            self.pending.lock().ok()?.remove(&request_id);
-            return None;
+            self.pending.lock().map_err(|e| e.to_string())?.remove(&request_id);
+            return Ok(None);
         }
 
-        let result = timeout(Duration::from_millis(1800), receiver).await;
-        self.pending.lock().ok()?.remove(&request_id);
+        // Native stack recreation creates two tabs and may need more than 1.8 seconds.
+        let wait = if mode == "stack" { Duration::from_secs(12) } else { Duration::from_millis(1800) };
+        let result = timeout(wait, receiver).await;
+        self.pending.lock().map_err(|e| e.to_string())?.remove(&request_id);
         match result {
-            Ok(Ok(tabs)) => Some(tabs),
-            _ => None,
+            Ok(Ok(Ok(tabs))) => Ok(Some(tabs)),
+            Ok(Ok(Err(reason))) => Err(reason),
+            _ => Ok(None),
         }
     }
 
@@ -126,6 +130,10 @@ impl Bridge {
         let mut pending = self.pending.lock().expect("lookup lock");
         if !pending.get(id).is_some_and(|request| request.profile == profile) { return; }
         if let Some(request) = pending.remove(id) {
+            if let Some(reason) = value.get("error").and_then(Value::as_str) {
+                let _ = request.sender.send(Err(reason.chars().take(300).collect()));
+                return;
+            }
             // Never trust browser metadata blindly, even over an authenticated local socket.
             let choices = value.get("tabs")
                 .and_then(|tabs| serde_json::from_value::<Vec<BrowserTab>>(tabs.clone()).ok())
@@ -138,7 +146,7 @@ impl Bridge {
                     tab
                 })
                 .collect();
-            let _ = request.sender.send(safe);
+            let _ = request.sender.send(Ok(safe));
         }
     }
 

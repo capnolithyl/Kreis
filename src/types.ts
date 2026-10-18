@@ -1,7 +1,7 @@
 import { createStarterEntries } from './starterSettings.mjs';
 import { defaultBrowserProfiles } from './browserProfiles.mjs';
 
-export type TargetType = 'browser' | 'app' | 'folder' | 'group';
+export type TargetType = 'browser' | 'vivaldi-stack' | 'app' | 'folder' | 'group';
 /** Legacy bridge label retained for older saved shortcuts and v0.3 companions. */
 export type Profile = string;
 export type BrowserId = 'vivaldi' | 'chrome' | 'edge' | 'brave' | 'opera';
@@ -17,6 +17,8 @@ export type Entry = {
   profileId?: string;
   browserId?: BrowserId;
   match: MatchMode;
+  recreateStack?: boolean;
+  stackStartUrl?: string;
   icon: string;
   color: string;
   /** A top-level group ID; absent means show this entry on the main wheel. */
@@ -74,6 +76,14 @@ export function validateEntry(entry: Entry): string | null {
   if (!entry.title.trim()) return 'Please enter a label.';
   if (entry.type === 'group') return null;
   if (!entry.target.trim()) return 'Please enter a URL, executable, or folder path.';
+  if (entry.type === 'vivaldi-stack') {
+    if (entry.target.trim().length > 60) return 'Use a stack name no longer than 60 characters.';
+    if (entry.stackStartUrl?.trim()) {
+      try { const parsed = new URL(entry.stackStartUrl);
+        if (!['http:','https:'].includes(parsed.protocol)) return 'Starting URL must use HTTP(S).';
+      } catch { return 'Enter a valid starting URL including https://'; }
+    }
+  }
   if (entry.type === 'browser') {
     try {
       const parsed = new URL(entry.target);

@@ -4,7 +4,7 @@
 
 Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeScript. Browser-tab integration uses an optional unpacked Chromium extension. Kreis 0.12 supports configurable browser profiles for Vivaldi, Chrome, Edge, Brave, and Opera (the same Chromium extension APIs; test each browser on your PC).
 
-> **Status:** Active development. The documentation below describes Kreis **0.12.1**. Planned changes are tracked in the [roadmap](ROADMAP.md).
+> **Status:** Active development. The documentation below describes Kreis **0.12.2**. Planned changes are tracked in the [roadmap](ROADMAP.md).
 
 ## Features
 
@@ -87,6 +87,12 @@ The companion connects to a token-authenticated WebSocket at `127.0.0.1:43991`. 
 Profiles have stable internal IDs independent of their names and browser brands. Chrome · Work and Vivaldi · Work are two distinct connections. If a **new custom profile** is disconnected, Kreis shows an error rather than opening the wrong browser or profile. Existing legacy Vivaldi Work/Personal shortcuts retain the old default-browser fallback when unfiltered. Removing a profile never deletes its shortcuts; choose a replacement or leave them unassigned. Browser compatibility relies on Chromium extension APIs, and Opera or browser-specific restrictions may require verification on your machine.
 
 The extension popup includes **Tab matching diagnostics** for troubleshooting. After changing extension files, reload the unpacked extension on your browser's extensions page.
+
+## Experimental Vivaldi named Tab Stack shortcuts
+
+Add a new shortcut under Settings → Shortcuts & Groups and choose **Vivaldi named Tab Stack**. Select a paired Vivaldi profile and enter the **exact stack name** (case-insensitive), e.g. Runagaldr. Kreis focuses any tab in the matching native stack, without relying on a particular URL. This is Vivaldi-specific; Chrome/Edge tab groups are different.
+
+Optional **Create a new stack when missing** attempts to group two newly opened tabs with Vivaldi's undocumented `vivExtData` metadata; set an optional starting HTTP(S) URL for the first tab. It cannot restore the original tabs in a closed stack. If metadata is not exposed or native updates are rejected, creation fails without changing original tabs. Creation is experimental and **requires manual testing in Vivaldi**. Update/reload the unpacked companion extension to **v0.5.0**. Older browser shortcuts remain unchanged.
 
 ## Add to Kreis from outside the app
 

@@ -1,6 +1,7 @@
 /* Kreis browser companion. Runs independently in any Chromium browser profile. */
 import { findMatchingTab, findMatchingTabs, lookupDiagnostics } from './tab-finder.js';
 import { contextMenuPayload } from './context-add.js';
+import { lookupStack } from './vivaldi-stack.js';
 
 const ENDPOINT = 'ws://127.0.0.1:43991';
 let socket = null;
@@ -109,7 +110,12 @@ async function activateTab(url, match) {
   }
 }
 
-async function lookupMatchingTabs(url, match) {
+async function lookupMatchingTabs(url, match, recreate=false, startUrl='') {
+  if (match === 'stack') {
+    const matches = await lookupStack(chrome,url,recreate,startUrl);
+    await recordLookup({outcome: matches.length ? 'Matched Vivaldi native Tab Stack' : 'No named Vivaldi stack',totalTabs:matches.length,readableTabs:matches.length});
+    return matches.map(t=>({id:t.id,windowId:t.windowId,title:String(t.title||url).slice(0,160)}));
+  }
   const tabs = await allBrowserTabs();
   const diagnostics = lookupDiagnostics(tabs, url, match);
   if (tabs.length && diagnostics.readableTabs === 0) {
@@ -209,7 +215,7 @@ async function connect() {
         }
         if (message.type === 'lookup-tabs' && typeof message.url === 'string' &&
             typeof message.requestId === 'string') {
-          void lookupMatchingTabs(message.url, message.match || 'prefix')
+          void lookupMatchingTabs(message.url, message.match || 'prefix', message.recreateStack === true, message.startUrl || '')
             .then(tabs => {
               if (ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: 'tabs-result', requestId: message.requestId, tabs }));
@@ -217,7 +223,12 @@ async function connect() {
             })
             .catch(error => {
               setStatus('Tab lookup failed: ' + String(error));
-              // No result means the desktop will use its legacy fallback.
+              // Explicit errors let Kreis report unsupported Vivaldi metadata instead
+              // of silently opening another tab or pretending the stack does not exist.
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'tabs-result', requestId: message.requestId,
+                  error: String(error) }));
+              }
               console.error('Kreis tab lookup failed', error);
             });
         }

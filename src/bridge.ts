@@ -28,7 +28,10 @@ export async function launch(entry: Entry): Promise<OpenResult> {
 
 /** Null indicates an old or disconnected extension. The caller can use the legacy action. */
 export const getMatchingTabs = (entry: Entry) => invoke<BrowserTab[] | null>('query_browser_tabs', {
-  url: entry.target, profile: entry.profileId ?? entry.profile, matchMode: entry.match
+  url: entry.target, profile: entry.profileId ?? entry.profile,
+  matchMode: entry.type === 'vivaldi-stack' ? 'stack' : entry.match,
+  recreateStack: entry.type === 'vivaldi-stack' && entry.recreateStack === true,
+  startUrl: entry.type === 'vivaldi-stack' ? entry.stackStartUrl || '' : ''
 });
 export const focusBrowserTab = (profileId: string, tabId: number) =>
   invoke<void>('focus_browser_tab', { profile: profileId, tabId });
