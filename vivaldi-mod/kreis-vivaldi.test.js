@@ -61,6 +61,7 @@ function environment(tabs,overrides={}) {
       return {success:true,group};
     },
     async setExtData({extId,groupTitle}){
+      if(overrides.failNativeNaming)throw Error('Cannot name native group');
       named.push({extId,groupTitle});
       for(const id of created){
         const t=tabs.find(t=>t.id===id);
@@ -163,13 +164,7 @@ test('missing private creation methods do not even open temporary tabs',async()=
 
 test('native naming failures roll back only the created tabs',async()=>{
   const original=tab(1,'safe','Kreis');
-  const ctx=environment([original],{vivaldi:{tabsPrivate:{
-    async move(){
-      const group='new-vivaldi-group';
-      return {success:true,group};
-    },
-    async setExtData(){throw Error('Cannot name native group');}
-  }}});
+  const ctx=environment([original],{failNativeNaming:true});
   const r=await ctx.request('lookup',{name:'Runagaldr',recreate:true});
   assert.equal(r.ok,false);
   assert.match(r.error,/Cannot name native group/);
