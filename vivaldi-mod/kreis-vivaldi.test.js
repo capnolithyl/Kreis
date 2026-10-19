@@ -85,7 +85,7 @@ function environment(tabs,overrides={}) {
   const window={};
   runInNewContext(source,{
     location:{protocol:'chrome-extension:',hostname:'mpognobbkildjkofajifpdfhcoklimli',
-      pathname:'/window.html'},window,chrome:api,crypto:webcrypto,URL,setTimeout,
+      pathname:'/window.html'},window,chrome:api,crypto:webcrypto,URL,setTimeout,clearTimeout,
     console:{info(){},warn(){}},vivaldi:{tabsPrivate:native},...overrides
   });
   async function request(action,extra={}){
@@ -154,7 +154,7 @@ test('refused native grouping closes only Kreis-created tabs',async()=>{
   }}});
   const r=await ctx.request('lookup',{name:'Runagaldr',recreate:true});
   assert.equal(r.ok,false);
-  assert.match(r.error,/refused to create a native stack/i);
+  assert.match(r.error,/did not confirm native group creation/i);
   assert.equal(ctx.created.length,2);
   assert.equal(ctx.removed.length,2);
   assert.equal(ctx.updated.length,0);
