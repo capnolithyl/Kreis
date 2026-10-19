@@ -153,8 +153,8 @@ test('missing private creation methods do not even open temporary tabs',async()=
   const r=await ctx.request('lookup',{name:'Runagaldr',recreate:true});
   assert.equal(r.ok,false);
   assert.match(r.error,/Native stack creation unavailable/);
-  assert.match(r.error,/vivaldi\\.tabsPrivate \\[get=yes, move=no, setExtData=no\\]/);
-  assert.match(r.error,/chrome\\.tabsPrivate \\[get=no, move=no, setExtData=no\\]/);
+  assert.match(r.error,/vivaldi\.tabsPrivate \[get=yes, move=no, setExtData=no\]/);
+  assert.match(r.error,/chrome\.tabsPrivate \[get=no, move=no, setExtData=no\]/);
   assert.equal(ctx.created.length,0);
   assert.equal(ctx.removed.length,0);
 });
@@ -197,6 +197,6 @@ test('capability errors identify a missing naming method before creating anythin
   });
   const r=await ctx.request('lookup',{name:'Runagaldr',recreate:true});
   assert.equal(r.ok,false);
-  assert.match(r.error,/vivaldi\\.tabsPrivate \\[get=yes, move=yes, setExtData=no\\]/);
+  assert.match(r.error,/vivaldi\.tabsPrivate \[get=yes, move=yes, setExtData=no\]/);
   assert.equal(ctx.created.length,0);
 });
