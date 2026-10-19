@@ -123,3 +123,38 @@ document.querySelector('#scan').addEventListener('click', async () => {
   }).catch(error => ({ ok: false, error: String(error) }));
   diagnostics.textContent = result?.ok ? formatLookup(result.report) : 'Scan failed: ' + (result?.error || 'Extension unavailable');
 });
+
+function formatStackInspection(r) {
+  if (!r) return 'No Vivaldi Tab Stack diagnostic yet.';
+  return [
+    'Tabs visible: ' + r.total,
+    'tabs.query records: ' + r.query + ', with metadata: ' + r.queryData,
+    'windows.getAll records: ' + r.windows + ', with metadata: ' + r.windowData,
+    'tabs.get records: ' + r.fetched + ', with metadata: ' + r.fetchedData,
+    'Individual tab fetch errors: ' + r.getFailures,
+    'Tabs belonging to native stacks: ' + r.groupTabs,
+    'Native group IDs: ' + r.groupIds,
+    'Tabs with named-stack field: ' + r.namedTabs,
+    'Distinct stack names: ' + r.groupTitles,
+    'Vivaldi-specific tab fields: ' + (r.supportedTabFields?.join(', ') || '(none visible)'),
+    'Native metadata readable: ' + (r.metadataAccessible ? 'YES' : 'NO'),
+    r.total > r.fetched && !r.metadataAccessible ?
+      'Per-tab fallback examined at most ' + r.getSampleLimit + ' tab(s).' : ''
+  ].filter(Boolean).join('\n');
+}
+
+document.querySelector('#scan-stacks').addEventListener('click', async () => {
+  const button = document.querySelector('#scan-stacks');
+  const display = document.querySelector('#stack-diagnostics');
+  button.disabled=true;
+  display.textContent='Checking Vivaldi stack metadata...';
+  try {
+    const response = await chrome.runtime.sendMessage({type:'scan-vivaldi-stacks'});
+    display.textContent=response?.ok ? formatStackInspection(response.report) :
+      'Diagnostic failed: '+(response?.error||'No response from companion.');
+  } catch(error) {
+    display.textContent='Diagnostic failed: '+String(error);
+  } finally {
+    button.disabled=false;
+  }
+});

@@ -1,7 +1,7 @@
 /* Kreis browser companion. Runs independently in any Chromium browser profile. */
 import { findMatchingTab, findMatchingTabs, lookupDiagnostics } from './tab-finder.js';
 import { contextMenuPayload } from './context-add.js';
-import { lookupStack } from './vivaldi-stack.js';
+import { lookupStack, inspectVivaldiTabs } from './vivaldi-stack.js';
 
 const ENDPOINT = 'ws://127.0.0.1:43991';
 let socket = null;
@@ -271,6 +271,12 @@ chrome.storage.onChanged.addListener((changes, area) => {
 chrome.runtime.onMessage.addListener((message, _sender, respond) => {
   if (message?.type === 'get-status') { respond({ status }); return false; }
   if (message?.type === 'connect') { clearConnection(); void connect(); respond({ ok: true }); return false; }
+  if (message?.type === 'scan-vivaldi-stacks') {
+    void inspectVivaldiTabs(chrome)
+      .then(({diagnostic}) => respond({ok:true,report:diagnostic}))
+      .catch(error => respond({ok:false,error:String(error)}));
+    return true;
+  }
   if (message?.type === 'scan-tabs') {
     void allBrowserTabs()
       .then(tabs => respond({ ok: true, report: lookupDiagnostics(tabs, message.url || '', message.match || 'prefix') }))

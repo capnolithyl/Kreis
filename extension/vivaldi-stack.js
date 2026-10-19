@@ -17,15 +17,88 @@ export function namedStack(tabs, name) {
   const members=tabs.filter(t=>ids.has(tabData(t)?.group));
   return members.find(t=>t.active) || members[0] || null;
 }
-/** Identify a named stack; optionally create two entirely new tabs to host it.
+/** Aggregate Vivaldi-specific metadata from every extension-accessible tab source.
+ * Chrome's standard Tab shape does not guarantee vivExtData. We inspect, never mutate.
+ * Bounded per-tab enrichment prevents enormous browser profiles blocking the launcher.
+ * Diagnostics include counts/key names, never tab URLs, titles, or tab IDs. */
+export async function inspectVivaldiTabs(api) {
+  const queried = await api.tabs.query({});
+  const combined = new Map();
+  const counters = { query: queried.length, windows: 0, fetched: 0,
+    queryData: 0, windowData: 0, fetchedData: 0, groupTabs: 0,
+    namedTabs: 0, groupIds: 0, groupTitles: 0, getFailures: 0 };
+  const keys = new Set();
+  const accept = (tabs, field) => {
+    for (const tab of tabs) {
+      if (!Number.isInteger(tab?.id)) continue;
+      const d = tabData(tab);
+      if (d) counters[field]++;
+      const previous = combined.get(tab.id);
+      if (!previous || (d && !tabData(previous))) combined.set(tab.id, tab);
+      for (const name of Object.keys(tab)) {
+        if (/viv|group|stack|workspace/i.test(name)) keys.add(name);
+      }
+    }
+  };
+  accept(queried, 'queryData');
+  try {
+    if (typeof api.windows?.getAll === 'function') {
+      const windows = await api.windows.getAll({ populate: true, windowTypes: ['normal'] });
+      const flattened = windows.flatMap(win => win.tabs || []);
+      counters.windows = flattened.length;
+      accept(flattened, 'windowData');
+    }
+  } catch { /* Unsupported extension/host API; tab queries remain valid. */ }
+
+  // When no source exposes Vivaldi metadata, probe per-tab API as a fallback.
+  // Cap to avoid overwhelming Vivaldi with hundreds of additional requests.
+  const before = [...combined.values()].some(tab => !!tabData(tab));
+  if (!before && typeof api.tabs.get === 'function') {
+    const ids = [...combined.keys()].slice(0, 250);
+    const chunkSize = 12;
+    for (let i=0; i<ids.length; i+=chunkSize) {
+      const responses = await Promise.allSettled(ids.slice(i,i+chunkSize).map(id=>api.tabs.get(id)));
+      const successful=[];
+      for (const result of responses) {
+        if (result.status === 'fulfilled') { counters.fetched++; successful.push(result.value); }
+        else counters.getFailures++;
+      }
+      accept(successful, 'fetchedData');
+    }
+  }
+  const all = [...combined.values()];
+  const groups = new Set(), names = new Set();
+  for (const tab of all) {
+    const meta = tabData(tab);
+    if (typeof meta?.group === 'string' && meta.group) {
+      counters.groupTabs++;
+      groups.add(meta.group);
+    }
+    if (typeof meta?.fixedGroupTitle === 'string' && meta.fixedGroupTitle.trim()) {
+      counters.namedTabs++;
+      names.add(meta.fixedGroupTitle.trim().toLowerCase());
+    }
+  }
+  counters.groupIds = groups.size;
+  counters.groupTitles = names.size;
+  return { tabs: all, diagnostic: {
+    ...counters, total: all.length, getSampleLimit: 250,
+    supportedTabFields: [...keys].sort().slice(0, 20),
+    metadataAccessible: all.some(tab=>!!tabData(tab))
+  }};
+}
+
+ /** Identify a named stack; optionally create two entirely new tabs to host it.
  * A missing/unavailable proprietary API causes a visible error, not a wrong-browser fallback.
  * No original closed tabs can be reconstructed from a stack name alone. */
 export async function lookupStack(api, name, recreate=false, startUrl='') {
   const clean=String(name||'').trim();
   if (!clean || clean.length>60) throw Error('Stack name must contain 1-60 characters.');
-  const tabs=await api.tabs.query({});
-  if (tabs.length && !tabs.some(t=>tabData(t)!==null))
-    throw Error('Vivaldi native stack metadata is unavailable to the extension. No tabs changed.');
+  const {tabs, diagnostic} = await inspectVivaldiTabs(api);
+  if (tabs.length && !diagnostic.metadataAccessible)
+    throw Error('Vivaldi stack metadata unavailable: ' + diagnostic.query +
+      ' queried, ' + diagnostic.windows + ' window tabs, ' +
+      diagnostic.fetched + ' individually fetched. No tabs changed.');
   const found=namedStack(tabs,clean);
   if (found) return [found];
   if (!recreate) return [];
