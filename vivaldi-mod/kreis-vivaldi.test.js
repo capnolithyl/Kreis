@@ -13,7 +13,7 @@ const tab=(id,group,name,active=false)=>({
 
 function environment(tabs,overrides={}) {
   let handler, nextId=50;
-  const created=[],removed=[],updated=[],sent=[],moved=[],named=[];
+  const created=[],removed=[],updated=[],sent=[],moved=[],named=[],groupProps=[];
   const port={
     onMessage:{addListener(cb){handler=cb}},
     onDisconnect:{addListener(){}},
@@ -69,12 +69,23 @@ function environment(tabs,overrides={}) {
       }
     }
   };
+  if(overrides.enableSetGroupProperties===true){
+    native.setGroupProperties=(properties,callback)=>{
+      groupProps.push(properties);
+      if(!overrides.failGroupProperties)for(const id of created){
+        const t=tabs.find(t=>t.id===id);
+        t.vivExtData=JSON.stringify({...JSON.parse(t.vivExtData||'{}'),
+          fixedGroupTitle:properties.groupTitle});
+      }
+      callback?.();
+    };
+  }
   if(overrides.omitSetExtData===true)delete native.setExtData;
   if(overrides.enableChromeNamespace===true)api.tabsPrivate=native;
   const window={};
   runInNewContext(source,{
     location:{protocol:'chrome-extension:',hostname:'mpognobbkildjkofajifpdfhcoklimli',
-      pathname:'/window.html'},window,chrome:api,crypto:webcrypto,URL,setTimeout,
+      pathname:'/window.html'},window,chrome:api,crypto:webcrypto,URL,setTimeout,clearTimeout,
     console:{info(){},warn(){}},vivaldi:{tabsPrivate:native},...overrides
   });
   async function request(action,extra={}){
@@ -89,7 +100,7 @@ function environment(tabs,overrides={}) {
     }
     throw Error('No native mod response');
   }
-  return {request,created,removed,updated,moved,named,tabs,window};
+  return {request,created,removed,updated,moved,named,groupProps,tabs,window};
 }
 test('finds a stack by name without examining URLs',async()=>{
   const ctx=environment([tab(1,'a','Kreis'),tab(2,'a','Kreis',true),tab(3,'b','Other')]);
@@ -143,7 +154,7 @@ test('refused native grouping closes only Kreis-created tabs',async()=>{
   }}});
   const r=await ctx.request('lookup',{name:'Runagaldr',recreate:true});
   assert.equal(r.ok,false);
-  assert.match(r.error,/refused to create a native stack/i);
+  assert.match(r.error,/did not confirm native group creation/i);
   assert.equal(ctx.created.length,2);
   assert.equal(ctx.removed.length,2);
   assert.equal(ctx.updated.length,0);
@@ -157,9 +168,8 @@ test('missing private creation methods do not even open temporary tabs',async()=
   });
   const r=await ctx.request('lookup',{name:'Runagaldr',recreate:true});
   assert.equal(r.ok,false);
-  assert.match(r.error,/Native stack creation unavailable/);
-  assert.match(r.error,/vivaldi\.tabsPrivate \[get=yes, move=no, setExtData=no\]/);
-  assert.match(r.error,/chrome\.tabsPrivate \[get=no, move=no, setExtData=no\]/);
+  assert.match(r.error,/Native Vivaldi grouping is unavailable/);
+  assert.match(r.error,/No tabs changed/);
   assert.equal(ctx.created.length,0);
   assert.equal(ctx.removed.length,0);
 });
@@ -170,8 +180,9 @@ test('native naming failures roll back only the created tabs',async()=>{
   const r=await ctx.request('lookup',{name:'Runagaldr',recreate:true});
   assert.equal(r.ok,false);
   assert.match(r.error,/Cannot name native group/);
-  assert.equal(ctx.removed.length,2);
-  assert.equal(ctx.tabs.length,1);
+  assert.match(r.error,/two new tabs were kept/);
+  assert.equal(ctx.removed.length,0);
+  assert.equal(ctx.tabs.length,3);
   assert.equal(ctx.tabs[0],original);
 });
 
@@ -216,10 +227,11 @@ test('silent naming failures remove only new tabs, keeping old groups intact',as
   const ctx=environment([original],{omitSetExtData:true,ignoreVivExtDataWrites:true});
   const r=await ctx.request('lookup',{name:'Runagaldr',recreate:true});
   assert.equal(r.ok,false);
-  assert.match(r.error,/did not preserve its requested name/);
+  assert.match(r.error,/did not confirm its name/);
+  assert.match(r.error,/two new tabs were kept/);
   assert.equal(ctx.created.length,2);
-  assert.equal(ctx.removed.length,2);
-  assert.equal(ctx.tabs.length,1);
+  assert.equal(ctx.removed.length,0);
+  assert.equal(ctx.tabs.length,3);
   assert.equal(ctx.tabs[0],original);
 });
 
@@ -229,6 +241,34 @@ test('a missing native move API never opens temporary tabs',async()=>{
   });
   const r=await ctx.request('lookup',{name:'Runagaldr',recreate:true});
   assert.equal(r.ok,false);
-  assert.match(r.error,/Native stack creation unavailable/);
+  assert.match(r.error,/Native Vivaldi grouping is unavailable/);
   assert.equal(ctx.created.length,0);
+});
+
+test('native setGroupProperties names group without setExtData',async()=>{
+  const ctx=environment([tab(1,'safe','Kreis')],{
+    omitSetExtData:true,enableSetGroupProperties:true,ignoreVivExtDataWrites:true
+  });
+  const r=await ctx.request('lookup',{name:'Runagaldr',recreate:true,startUrl:'https://runagaldr.com'});
+  assert.equal(r.ok,true);
+  assert.equal(ctx.groupProps.length,1);
+  assert.equal(ctx.groupProps[0].groupExtId,'new-vivaldi-group');
+  assert.equal(ctx.groupProps[0].groupTitle,'Runagaldr');
+  assert.equal(ctx.removed.length,0);
+  assert.equal(ctx.tabs.length,3);
+});
+
+test('group created but unreadable metadata does not delete new tabs',async()=>{
+  const ctx=environment([tab(1,'safe','Kreis')],{
+    vivaldi:{tabsPrivate:{
+      async move(){return {success:true,group:'new-vivaldi-group'};},
+      async get(){return {};}
+    }}
+  });
+  const r=await ctx.request('lookup',{name:'Runagaldr',recreate:true});
+  assert.equal(r.ok,false);
+  assert.match(r.error,/group metadata was not readable/);
+  assert.match(r.error,/two new tabs were kept/);
+  assert.equal(ctx.removed.length,0);
+  assert.equal(ctx.tabs.length,3);
 });
