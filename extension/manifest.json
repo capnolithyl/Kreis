@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Kreis Tab Switcher",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Connect a Chromium browser profile to the Kreis Windows radial launcher.",
   "minimum_chrome_version": "116",
   "permissions": [
@@ -9,6 +9,9 @@
     "storage",
     "contextMenus"
   ],
+  "externally_connectable": {
+    "ids": ["mpognobbkildjkofajifpdfhcoklimli"]
+  },
   "host_permissions": [
     "http://127.0.0.1/*"
   ],
