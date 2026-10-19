@@ -64,6 +64,16 @@ export default function App() {
   const importFileInput = useRef<HTMLInputElement | null>(null);
   const [importPreview, setImportPreview] = useState<SettingsImportPreview | null>(null);
   const [importFilename, setImportFilename] = useState('');
+  // React's InputHTMLAttributes does not expose the HTML file-input "cancel"
+  // event yet. Attach it to the native input node while this panel is mounted.
+  useEffect(() => {
+    if(screen!=='settings'||settingsSection!=='backup')return;
+    const input=importFileInput.current;
+    if(!input)return;
+    const onCancel=()=>{void finishSettingsFilePicker();};
+    input.addEventListener('cancel',onCancel);
+    return ()=>input.removeEventListener('cancel',onCancel);
+  },[screen,settingsSection]);
   const activeShortcut = useRef<string | null>(null);
   const store = useRef<Store | null>(null);
   const [levels, setLevels] = useState<WheelLevel[]>([]);
@@ -1154,8 +1164,7 @@ export default function App() {
               </div>
               <p className="helper">Choose a Kreis JSON export, or an edited JSON file containing an <code>entries</code> list. Only sections present in the file are replaced. Selecting a file does not change anything.</p>
               <input ref={importFileInput} type="file" accept=".json,application/json" style={{display:'none'}}
-                aria-label="Choose Kreis JSON file" onChange={event=>void selectSettingsFile(event)}
-                onCancel={()=>void finishSettingsFilePicker()}/>
+                aria-label="Choose Kreis JSON file" onChange={event=>void selectSettingsFile(event)}/>
               <div className="backup-actions">
                 <button className="secondary" disabled={busy} onClick={()=>void openSettingsFilePicker()}>
                   <Upload size={17}/> Choose JSON file
