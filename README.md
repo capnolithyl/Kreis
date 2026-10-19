@@ -4,7 +4,7 @@
 
 Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeScript. Browser-tab integration uses an optional unpacked Chromium extension. Kreis 0.12 supports configurable browser profiles for Vivaldi, Chrome, Edge, Brave, and Opera (the same Chromium extension APIs; test each browser on your PC).
 
-> **Status:** Active development. The documentation below describes Kreis **0.12.3**. Planned changes are tracked in the [roadmap](ROADMAP.md).
+> **Status:** Active development. The documentation below describes Kreis **0.13.0**. Planned changes are tracked in the [roadmap](ROADMAP.md).
 
 ## Features
 
@@ -92,9 +92,11 @@ The extension popup includes **Tab matching diagnostics** for troubleshooting. A
 
 Add a new shortcut under Settings → Shortcuts & Groups and choose **Vivaldi named Tab Stack**. Select a paired Vivaldi profile and enter the **exact stack name** (case-insensitive), e.g. Runagaldr. Kreis focuses any tab in the matching native stack, without relying on a particular URL. This is Vivaldi-specific; Chrome/Edge tab groups are different.
 
-Optional **Create a new stack when missing** attempts to group two newly opened tabs with Vivaldi's undocumented `vivExtData` metadata; set an optional starting HTTP(S) URL for the first tab. It cannot restore the original tabs in a closed stack. If metadata is not exposed or native updates are rejected, creation fails without changing original tabs. Creation is experimental and **requires manual testing in Vivaldi**. Update/reload the unpacked companion extension to **v0.5.2**. Ordinary extensions cannot access Vivaldi's native stack metadata. This feature requires the optional [Vivaldi UI mod](vivaldi-mod/README.md) and is experimental. If native stacks cannot be accessed, open the companion popup and click **Check stack access**. The diagnostic compares tab-query records, populated-window records and individual-tab records, and displays counts only. It does not send URL or title data. Older browser shortcuts remain unchanged.
+Optional **Create a new stack when missing** attempts to group two newly opened tabs with Vivaldi's undocumented `vivExtData` metadata; set an optional starting HTTP(S) URL for the first tab. It cannot restore the original tabs in a closed stack. If metadata is not exposed or native updates are rejected, creation fails without changing original tabs. Creation is experimental and **requires manual testing in Vivaldi**. Update/reload the unpacked companion extension to **v0.5.3**. Ordinary extensions cannot access Vivaldi's native stack metadata. This feature requires the optional [Vivaldi UI mod](vivaldi-mod/README.md) and is experimental. If native stacks cannot be accessed, open the companion popup and click **Check stack access**. The diagnostic compares tab-query records, populated-window records and individual-tab records, and displays counts only. It does not send URL or title data. Older browser shortcuts remain unchanged.
 
 ## Add to Kreis from outside the app
+
+**Vivaldi Tab Stacks:** With Kreis 0.13.0, browser extension 0.5.3 and the updated Vivaldi UI mod installed, you can add a **named Vivaldi Tab Stack** directly to Kreis. Try ordinary right-click on a tab in the stack and select **Add Tab Stack to Kreis** if your Vivaldi version exposes Chromium's tab context-menu extension hook. Otherwise, **Ctrl+right-click** the existing named stack in Vivaldi's tab strip and click the small **Add "[name]" to Kreis** button. Both open Kreis's regular picker with the correct Vivaldi profile selected. This only creates a shortcut; it never moves or modifies the stack, and auto-recreation defaults to off.
 
 **File Explorer:** Open **Settings → Integrations** to enable or disable per-user **Add to Kreis** context-menu commands for folders, `.exe` files, and `.lnk` shortcuts. On Windows 11, these commands may appear under **Show more options**. No administrator privileges are required for this opt-in integration. The confirmation picker now lets you choose the destination **and the shortcut icon and color** before saving.
 

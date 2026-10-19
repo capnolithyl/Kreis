@@ -72,7 +72,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
 async function queueNativeStackAdd(name){
   const clean=typeof name==='string'?name.trim():'';
-  if(!clean||clean.length>60||/[\\x00-\\x1f\\x7f]/.test(clean))return;
+  if(!clean||clean.length>60||/[\x00-\x1f\x7f]/.test(clean))return;
   await chrome.storage.local.set({pendingContextAdd:{
     kind:'vivaldi-stack',name:clean,at:Date.now()
   }});

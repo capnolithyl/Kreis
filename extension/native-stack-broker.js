@@ -29,7 +29,7 @@ export class NativeStackBroker {
     if(message?.type==='kreis-stack-context-add'){
       const name=message.name;
       if(typeof name==='string'&&name.trim()&&name.trim().length<=60&&
-        !/[\\x00-\\x1f\\x7f]/.test(name)&&typeof this.onContextAdd==='function'){
+        !/[\x00-\x1f\x7f]/.test(name)&&typeof this.onContextAdd==='function'){
         this.onContextAdd(name.trim());
       }
       return;
@@ -42,7 +42,7 @@ export class NativeStackBroker {
     if(p.action==='resolve-tab'){
       const name=message.stackName;
       if(typeof name!=='string'||!name.trim()||name.trim().length>60||
-        /[\\x00-\\x1f\\x7f]/.test(name))
+        /[\x00-\x1f\x7f]/.test(name))
         return p.reject(Error('This tab is not inside a named Vivaldi Tab Stack.'));
       return p.resolve(name.trim());
     }

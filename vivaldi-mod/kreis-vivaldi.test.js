@@ -272,3 +272,23 @@ test('group created but unreadable metadata does not delete new tabs',async()=>{
   assert.equal(ctx.removed.length,0);
   assert.equal(ctx.tabs.length,3);
 });
+
+test('native tab context resolves the clicked stack, not the active tab',async()=>{
+  const ctx=environment([
+    tab(1,'group-a','Kreis',true),
+    tab(2,'group-b','Runagaldr'),
+    tab(3,'group-b','Runagaldr')
+  ]);
+  const r=await ctx.request('resolve-tab',{tabId:3});
+  assert.equal(r.ok,true);
+  assert.equal(r.stackName,'Runagaldr');
+  assert.deepEqual(ctx.created,[]);
+});
+test('unnamed or ungrouped tabs cannot create stack shortcuts',async()=>{
+  const ctx=environment([{id:1,windowId:7,active:true},
+    {id:2,windowId:7,vivExtData:JSON.stringify({group:'untitled'})}]);
+  const a=await ctx.request('resolve-tab',{tabId:1});
+  const b=await ctx.request('resolve-tab',{tabId:2});
+  assert.equal(a.stackName,null);
+  assert.equal(b.stackName,null);
+});
