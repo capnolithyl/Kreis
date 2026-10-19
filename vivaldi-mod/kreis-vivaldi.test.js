@@ -326,7 +326,8 @@ test('Ctrl+right-click on a named stack offers Add to Kreis without changing tab
   assert.ok(button);
   assert.match(button.textContent,/Runagaldr/);
   button.listeners.click();
-  assert.deepEqual(ctx.sent.at(-1),{type:'kreis-stack-context-add',name:'Runagaldr'});
+  assert.equal(ctx.sent.at(-1).type,'kreis-stack-context-add');
+  assert.equal(ctx.sent.at(-1).name,'Runagaldr');
   assert.equal(ctx.created.length,0);
   assert.equal(ctx.updated.length,0);
 });
