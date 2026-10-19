@@ -5,7 +5,7 @@ import {
   Folder, Github, Globe2, House, LayoutDashboard, Layers3,
   Link2, ListTodo, Mail, MessageCircle, MessagesSquare,
   Monitor, NotebookPen, PanelTop, Plus, Rocket, Search,
-  Settings2, Sparkles, Terminal, Wrench
+  Save, Settings2, Sparkles, Terminal, Wrench
 } from 'lucide-react';
 
 /** Stored icon keys stay stable so existing Kreis shortcuts keep their appearance. */
@@ -40,6 +40,7 @@ export const icons: Record<string, LucideIcon> = {
   plus: Plus,
   rocket: Rocket,
   search: Search,
+  save: Save,
   settings: Settings2,
   sparkles: Sparkles,
   terminal: Terminal,
