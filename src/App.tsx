@@ -3,7 +3,7 @@ import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { load, type Store } from '@tauri-apps/plugin-store';
-import { ArrowLeft, Check, ChevronDown, CircleHelp, Copy, Minus, Plus, RotateCcw, Save, Settings2, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, CircleHelp, Copy, Download, FileJson, Minus, Plus, RotateCcw, Save, Settings2, Trash2, Upload, X } from 'lucide-react';
 import { focusAppWindow, focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, setBrowserProfiles, hideWheel, launch, startHubDrag, listAppWindows, openFolder, openNewBrowserTab, toggleWheel, type AppWindow, type BrowserTab, type ContextAdd, takeStartupContext, windowsContextMenuEnabled, setWindowsContextMenu } from './bridge';
 import { icons } from './icons';
 import { createStarterEntries, selectInitialSettings } from './starterSettings.mjs';
@@ -18,6 +18,7 @@ import { SETTINGS_CATEGORIES, settingsCategoryTitle, type SettingsCategory } fro
 import { ColorPicker, IconPicker } from './ShortcutAppearancePicker';
 import WheelColorPicker from './WheelColorPicker';
 import { defaultContextAppearance } from './contextAppearance.mjs';
+import { MAX_SETTINGS_FILE_BYTES, parseSettingsImport, serializeSettings, type SettingsImportPreview } from './settingsIO.mjs';
 import { eligibleParentGroups, flattenHierarchy, getChildren, removeGroup, suggestParent, validateHierarchy } from './groupHierarchy.mjs';
 import { dropEntry, type DropMode } from './groupDragDrop.mjs';
 import type { CSSProperties } from 'react';
@@ -42,7 +43,8 @@ const settingsSizes: Record<SettingsCategory, LogicalSize> = {
   typography: new LogicalSize(790, 485),
   shortcuts: new LogicalSize(900, 710),
   connection: new LogicalSize(850, 700),
-  integrations: new LogicalSize(770, 455)
+  integrations: new LogicalSize(770, 455),
+  backup: new LogicalSize(820, 650)
 };
 const window = getCurrentWindow();
 
@@ -59,6 +61,9 @@ export default function App() {
   const [profiles, setProfiles] = useState<string[]>([]);
   const [draft, setDraft] = useState<Entry | null>(null);
   const [shortcutDraft, setShortcutDraft] = useState('Control+Space');
+  const importFileInput = useRef<HTMLInputElement | null>(null);
+  const [importPreview, setImportPreview] = useState<SettingsImportPreview | null>(null);
+  const [importFilename, setImportFilename] = useState('');
   const activeShortcut = useRef<string | null>(null);
   const store = useRef<Store | null>(null);
   const [levels, setLevels] = useState<WheelLevel[]>([]);
@@ -256,6 +261,73 @@ export default function App() {
     setSettings(next);
   }
 
+
+  /** Portable backup of saved preferences only; browser pairing secrets stay local. */
+  function exportSettingsFile() {
+    setError('');
+    try {
+      const blob=new Blob([serializeSettings(settings)],{type:'application/json;charset=utf-8'});
+      const url=URL.createObjectURL(blob);
+      const anchor=document.createElement('a');
+      const stamp=new Date().toISOString().slice(0,19).replace(/:/g,'-').replace('T','_');
+      anchor.href=url;
+      anchor.download='kreis-settings-'+stamp+'.json';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),30000);
+      setNotice('Settings JSON exported. The browser pairing key is not included.');
+    } catch(cause) { setError('Could not export settings: '+String(cause)); }
+  }
+
+  async function selectSettingsFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file=event.currentTarget.files?.[0];
+    event.currentTarget.value='';
+    if(!file)return;
+    setImportPreview(null);
+    setImportFilename('');
+    setError('');
+    setNotice('');
+    try{
+      if(file.size>MAX_SETTINGS_FILE_BYTES)throw Error('Choose a JSON file no larger than 2 MB.');
+      const parsed=parseSettingsImport(await file.text(),settings);
+      setImportFilename(file.name);
+      setImportPreview(parsed);
+    }catch(cause){setError(String(cause));}
+  }
+
+  async function applySettingsImport() {
+    if(!importPreview||busyRef.current)return;
+    const previous=settings,next=importPreview.settings;
+    busyRef.current=true;setBusy(true);setError('');
+    try {
+      // Reject occupied/invalid hotkeys before touching persistent settings.
+      if(next.shortcut!==previous.shortcut)await registerShortcut(next.shortcut);
+      await persist(next);
+      setShortcutDraft(next.shortcut);
+      setAppearanceDraft(next.appearance);
+      setImportPreview(null);
+      setImportFilename('');
+      setNotice('Settings imported. Your shortcut layout and browser profiles are ready.');
+    }catch(cause){
+      try{
+        if(activeShortcut.current!==previous.shortcut)await registerShortcut(previous.shortcut);
+        await setBrowserProfiles(previous.browserProfiles);
+        if(store.current){
+          await store.current.set('settings',previous);
+          await store.current.save();
+        }
+      }catch(rollbackError){
+        setError('Import failed: '+String(cause)+'. Restore may be incomplete: '+String(rollbackError));
+        busyRef.current=false;setBusy(false);
+        return;
+      }
+      setError('Import not applied: '+String(cause));
+    }finally{
+      busyRef.current=false;setBusy(false);
+    }
+  }
+
   async function createBrowserProfile(name: string, browserId: BrowserId) {
     const result = addBrowserProfile(settings.browserProfiles, name, browserId, crypto.randomUUID());
     if (result.error || !result.profiles) { setError(result.error || 'Could not add profile.'); return; }
@@ -327,6 +399,8 @@ export default function App() {
     setError('');
     setNotice('');
     // Unsaved edits in one category never silently carry into a later visit.
+    setImportPreview(null);
+    setImportFilename('');
     setAppearanceDraft(settings.appearance);
     setShortcutDraft(settings.shortcut);
     try {
@@ -933,7 +1007,7 @@ export default function App() {
                 aria-label="Back to Settings wheel" title="Back to Settings wheel"><ArrowLeft size={20}/></button>
               <div>
                 <div className="overline">KREIS SETTINGS</div>
-                <h1>{settingsCategoryTitle(settingsSection)} <small>0.12.0</small></h1>
+                <h1>{settingsCategoryTitle(settingsSection)} <small>0.14.0</small></h1>
                 <p>{SETTINGS_CATEGORIES.find(category => category.key === settingsSection)?.description}</p>
               </div>
             </div>
@@ -1030,6 +1104,55 @@ export default function App() {
                   );
                 })}
               </div>
+            </section>}
+            {settingsSection === 'backup' && <section className="setting-section settings-backup">
+              <div className="section-title">
+                <h2>Export configuration</h2><span>Portable JSON backup</span>
+              </div>
+              <p className="helper">Export your complete setup: shortcuts, nested groups, ordering, icons, colors, browser profiles, hotkey and wheel appearance. Save a backup or give the JSON file to ChatGPT to reorganize.</p>
+              <div className="backup-actions">
+                <button className="primary" disabled={busy} onClick={exportSettingsFile}>
+                  <Download size={17}/> Export current settings
+                </button>
+                <span className="backup-counter">{settings.entries.length} slices · {settings.browserProfiles.length} profiles</span>
+              </div>
+            </section>}
+            {settingsSection === 'backup' && <section className="setting-section settings-backup">
+              <div className="section-title">
+                <h2>Import configuration</h2><span>Review before replacing</span>
+              </div>
+              <p className="helper">Choose a Kreis JSON export, or an edited JSON file containing an <code>entries</code> list. Only sections present in the file are replaced. Selecting a file does not change anything.</p>
+              <input ref={importFileInput} type="file" accept=".json,application/json" style={{display:'none'}}
+                aria-label="Choose Kreis JSON file" onChange={event=>void selectSettingsFile(event)}/>
+              <div className="backup-actions">
+                <button className="secondary" disabled={busy} onClick={()=>importFileInput.current?.click()}>
+                  <Upload size={17}/> Choose JSON file
+                </button>
+                <span className="backup-counter">{importFilename||'No file selected'}</span>
+              </div>
+              {importPreview && <div className="backup-preview">
+                <div className="backup-preview-heading"><FileJson size={21}/>
+                  <div><strong>Ready to import</strong><small>{importFilename}</small></div>
+                </div>
+                <div className="backup-summary">
+                  <div><strong>{importPreview.summary.shortcuts}</strong><span>Shortcuts</span></div>
+                  <div><strong>{importPreview.summary.groups}</strong><span>Groups</span></div>
+                  <div><strong>{importPreview.summary.browserProfiles}</strong><span>Profiles</span></div>
+                </div>
+                <p className="helper"><strong>Will replace:</strong> {importPreview.fields.map(field =>
+                  field==='entries'?'shortcuts and groups':
+                  field==='browserProfiles'?'browser profiles':
+                  field==='shortcut'?'global hotkey':'typography').join(', ')}.</p>
+                <p className="helper"><strong>Global hotkey after import:</strong> {importPreview.summary.hotkey}</p>
+                {importPreview.warnings.map((warning,i)=><p className="backup-warning" key={i}>{warning}</p>)}
+                <div className="backup-actions">
+                  <button className="secondary" disabled={busy}
+                    onClick={()=>{setImportPreview(null);setImportFilename('');}}>Cancel</button>
+                  <button className="primary" disabled={busy} onClick={()=>void applySettingsImport()}>
+                    <Check size={17}/> {busy?'Importing…':'Apply import'}
+                  </button>
+                </div>
+              </div>}
             </section>}
             {settingsSection === 'integrations' && <section className="setting-section">
               <div className="section-title"><h2>Explorer context menus</h2><span>Current Windows user only</span></div>
