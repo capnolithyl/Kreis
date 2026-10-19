@@ -18,6 +18,12 @@ The Kreis desktop app **0.12.3** already supports stack shortcuts; you **do not 
 
 The script backs up `window.html` to `window.html.kreis-backup` once, installs `kreis-vivaldi.js` with the extension ID inserted, and adds only one script tag. It doesn't edit any Vivaldi user profiles or their saved tabs.
 
+### Updating a previously installed UI mod
+
+If Kreis already shows **Vivaldi UI mod: Connected**, you only need to install the updated `kreis-vivaldi.js`. **Do not reinstall the desktop app or reload the browser extension.** Completely close Vivaldi and run the same PowerShell installation command with the existing extension ID. It overwrites just the Kreis mod script; its existing `window.html` injection and backup are preserved.
+
+Stack recreation now calls Vivaldi's private native grouping and naming methods. This is **not guaranteed across Vivaldi versions**. First test with a disposable stack name and no important tabs. If Vivaldi rejects grouping/naming or the new stack cannot be verified, Kreis attempts to close only the two tabs it created. Existing stack switching is unchanged.
+
 **Important:** These are unofficial, privileged Vivaldi UI modifications. A Vivaldi update may undo the injection or change private APIs. Back up your browser data before testing. The optional creation action creates two tabs; if creation cannot be confirmed it attempts to remove **only** those new tabs. It cannot resurrect tabs closed earlier.
 
 ### Uninstall
