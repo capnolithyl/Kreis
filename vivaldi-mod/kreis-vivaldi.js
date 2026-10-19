@@ -45,26 +45,47 @@
  async function create(name,url){
    if(url){let u;try{u=new URL(url);}catch{throw Error('Invalid stack starting URL.');}
      if(!['http:','https:'].includes(u.protocol))throw Error('Only HTTP(S) starting URLs are supported.');}
+   // Do not create any tabs if this Vivaldi version lacks real native group commands.
+   // chrome.tabs.update({vivExtData}) can silently ignore these fields.
+   const native=typeof vivaldi!=='undefined'&&vivaldi.tabsPrivate;
+   if(typeof native?.move!=='function'||typeof native?.setExtData!=='function')
+     throw Error('This Vivaldi version has no native stack creation API. No tabs changed.');
    const w=await chrome.windows.getLastFocused({windowTypes:['normal']});
    if(!Number.isInteger(w?.id))throw Error('No normal Vivaldi window is focused.');
    const created=[];
    try{
+     // A native stack requires at least two tabs. Both belong exclusively to Kreis.
      for(const page of [url||'about:blank','about:blank']){
        const t=await chrome.tabs.create({windowId:w.id,url:page,active:false});
        if(!Number.isInteger(t?.id))throw Error('Could not create stack tabs.');
        created.push(t.id);
      }
-     const group='kreis-'+crypto.randomUUID();
-     for(const id of created){
-       const tab=await chrome.tabs.get(id);
-       await chrome.tabs.update(id,{vivExtData:JSON.stringify({...meta(tab),group,fixedGroupTitle:name})});
+     // Use Vivaldi's native group operation rather than writing undocumented
+     // tab metadata through the regular Chromium extension API.
+     const moved=await native.move({
+       tabIds:created[1], target:created[0],
+       tweaks:['target-is-tab','on','create-new-group']
+     });
+     if(moved?.success!==true||typeof moved.group!=='string'||!moved.group)
+       throw Error('Vivaldi refused to create a native stack: '+String(moved?.message||'no group ID returned'));
+     await native.setExtData({extId:moved.group,groupTitle:name});
+
+     // Group metadata can be propagated asynchronously into the tab records.
+     // Confirm both *new* tabs are members and the new stack has the right name.
+     for(let attempt=0;attempt<6;attempt++){
+       const tabs=await readTabs();
+       const members=created.map(id=>tabs.find(t=>t.id===id));
+       const named=find(tabs,name);
+       if(members.every(t=>t&&meta(t)?.group===moved.group)&&
+          named&&created.includes(named.id))return members[0];
+       if(attempt<5)await new Promise(resolve=>setTimeout(resolve,200));
      }
-     const current=await readTabs();
-     const members=created.map(id=>current.find(t=>t.id===id));
-     if(!members.every(t=>meta(t)?.group===group&&meta(t)?.fixedGroupTitle===name))
-       throw Error('Native stack creation was not confirmed. New tabs have been removed.');
-     return members[0];
-   }catch(e){if(created.length)try{await chrome.tabs.remove(created);}catch{}throw e;}
+     throw Error('Vivaldi grouped the tabs but did not confirm the requested stack name.');
+   }catch(e){
+     // Never modify or remove an existing tab. Roll back only what we created.
+     if(created.length)try{await chrome.tabs.remove(created);}catch{}
+     throw e;
+   }
  }
  async function handle(message){
    if(message.action==='diagnose')return {report:diagnose(await readTabs())};
