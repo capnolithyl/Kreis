@@ -80,7 +80,7 @@ if (-not $html.Contains($tag)) {
     if ($html -notmatch '(?i)</body>') {
         throw 'Cannot find the closing body tag; no window.html modifications made.'
     }
-    $pattern = New-Object System.Text.RegularExpressions.Regex('</body>', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    $pattern = [regex]::new('</body>', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
     $html = $pattern.Replace($html, ($tag + [Environment]::NewLine + '</body>'), 1)
     [System.IO.File]::WriteAllText($htmlPath, $html, $utf8)
 }
