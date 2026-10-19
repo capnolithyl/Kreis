@@ -4,7 +4,7 @@
 
 Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeScript. Browser-tab integration uses an optional unpacked Chromium extension. Kreis 0.12 supports configurable browser profiles for Vivaldi, Chrome, Edge, Brave, and Opera (the same Chromium extension APIs; test each browser on your PC).
 
-> **Status:** Active development. The documentation below describes Kreis **0.14.0**. Planned changes are tracked in the [roadmap](ROADMAP.md).
+> **Status:** Active development. The documentation below describes Kreis **0.14.1**. Planned changes are tracked in the [roadmap](ROADMAP.md).
 
 ## Features
 
@@ -59,11 +59,11 @@ To nest a group, set its **Parent group** (or the shortcut's **Placement**). The
 
 **Existing settings are preserved when updating.** Kreis saves starter shortcuts on first launch. An existing layout, including an intentionally empty Kreis, is never overwritten by a version update. **Settings → Shortcuts & Groups → Restore starter shortcuts** lets you intentionally restore the samples (this replaces the current shortcuts and groups).
 
-### Export and import Kreis settings (0.14.0)
+### Export and import Kreis settings (0.14.1)
 
 Open **Settings → Backup & Restore**. **Export current settings** downloads a human-editable JSON backup including all shortcuts, nested groups and their order, custom icons and colors, Chromium browser profiles, wheel appearance, and the hotkey. The browser companion's **pairing key is intentionally excluded**; don't publicly share shortcut URLs and local paths if they are sensitive.
 
-To restore or apply an AI-edited file, choose **Import configuration → Choose JSON file**. Kreis validates its shortcuts, browser profile IDs, and nested groups, shows a preview of what sections will change, and requires **Apply import** before saving. Export your current settings first to preserve a rollback copy. Importing an unavailable hotkey does not overwrite the saved configuration.
+To restore or apply an AI-edited file, choose **Import configuration → Choose JSON file**. Kreis now keeps its Settings window visible while the Windows file chooser temporarily takes focus, and restores focus after selecting or canceling. Kreis validates its shortcuts, browser profile IDs, and nested groups, shows a preview of what sections will change, and requires **Apply import** before saving. Export your current settings first to preserve a rollback copy. Importing an unavailable hotkey does not overwrite the saved configuration.
 
 A complete export uses this format:
 
