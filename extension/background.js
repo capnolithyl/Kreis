@@ -14,7 +14,8 @@ let isConnecting = false;
 let status = 'Disconnected';
 let authenticated = false;
 
-function installContextMenus() {
+async function installContextMenus() {
+  const {browserId}=await chrome.storage.local.get('browserId');
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: 'kreis-add-link', title: 'Add link to Kreis', contexts: ['link']
@@ -22,6 +23,15 @@ function installContextMenus() {
     chrome.contextMenus.create({
       id: 'kreis-add-page', title: 'Add page to Kreis', contexts: ['page']
     });
+    // Chromium 150+ optionally exposes a native tab-strip menu hook. Vivaldi
+    // may not forward its proprietary Tab Stack menu through this Chromium hook.
+    // Create only if the browser advertises support.
+    if((!browserId||browserId==='vivaldi')&&chrome.contextMenus.ContextType?.TAB){
+      chrome.contextMenus.create({
+        id:'kreis-add-stack',title:'Add Tab Stack to Kreis',contexts:['tab']
+      },()=>{if(chrome.runtime.lastError)
+        console.info('Kreis: native tab menu unsupported:',chrome.runtime.lastError.message);});
+    }
   });
 }
 
@@ -36,13 +46,21 @@ async function flushPendingContextAdd() {
   }
   if (socket?.readyState !== WebSocket.OPEN || !authenticated) return;
   socket.send(JSON.stringify({
-    type: 'add-context', url: pendingContextAdd.url, title: pendingContextAdd.title
+    ...(pendingContextAdd.kind==='vivaldi-stack'
+      ? {type:'add-context',kind:'vivaldi-stack',name:pendingContextAdd.name}
+      : {type:'add-context',url:pendingContextAdd.url,title:pendingContextAdd.title})
   }));
   await chrome.storage.local.remove('pendingContextAdd');
 }
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   void (async () => {
+    if(info.menuItemId==='kreis-add-stack'){
+      if(!Number.isInteger(tab?.id))throw Error('Vivaldi did not identify the right-clicked tab.');
+      const name=await nativeStacks.resolveTab(tab.id);
+      await queueNativeStackAdd(name);
+      return;
+    }
     const request = contextMenuPayload(info, tab);
     if (!request) return;
     await chrome.storage.local.set({ pendingContextAdd: request });
@@ -51,6 +69,19 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   })().catch(error => setStatus('Add to Kreis failed: ' + String(error)));
 });
 
+
+async function queueNativeStackAdd(name){
+  const clean=typeof name==='string'?name.trim():'';
+  if(!clean||clean.length>60||/[\\x00-\\x1f\\x7f]/.test(clean))return;
+  await chrome.storage.local.set({pendingContextAdd:{
+    kind:'vivaldi-stack',name:clean,at:Date.now()
+  }});
+  if(authenticated)await flushPendingContextAdd();
+  else{setStatus('Waiting for Kreis to connect');void connect();}
+}
+nativeStacks.onContextAdd=name=>{
+  void queueNativeStackAdd(name).catch(error=>setStatus('Add stack failed: '+String(error)));
+};
 
 function setStatus(value) {
   status = value;
@@ -263,11 +294,12 @@ async function connect() {
   }
 }
 
-chrome.runtime.onInstalled.addListener(() => { installContextMenus(); void connect(); });
-chrome.runtime.onStartup.addListener(() => { void connect(); });
+chrome.runtime.onInstalled.addListener(() => { void installContextMenus(); void connect(); });
+chrome.runtime.onStartup.addListener(() => { void installContextMenus(); void connect(); });
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && ('pairingToken' in changes || 'profile' in changes || 'profileId' in changes || 'browserId' in changes)) {
     clearConnection();
+    if('browserId' in changes)void installContextMenus();
     void connect();
   }
 });

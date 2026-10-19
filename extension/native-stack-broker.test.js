@@ -45,3 +45,29 @@ test('invalid input is rejected before reaching the browser',async()=>{
  await assert.rejects(b.lookup('Kreis',true,'file:///secret'),/HTTP\(S\)/);
  assert.equal(p.sent.length,0);
 });
+
+test('resolves a right-clicked Vivaldi tab to a named stack',async()=>{
+  const b=new NativeStackBroker(),p=make();b.attach(p);
+  const result=b.resolveTab(42);
+  assert.equal(p.sent[0].action,'resolve-tab');
+  assert.equal(p.sent[0].tabId,42);
+  p.reply({type:'kreis-stack-response',requestId:p.sent[0].requestId,ok:true,stackName:'Runagaldr'});
+  assert.equal(await result,'Runagaldr');
+});
+test('context-add requires a connected Vivaldi UI sender and valid named stack',()=>{
+  const b=new NativeStackBroker(),p=make(),received=[];
+  b.onContextAdd=name=>received.push(name);
+  p.reply({type:'kreis-stack-context-add',name:'Runagaldr'});
+  assert.deepEqual(received,[]);
+  b.attach(p);
+  p.reply({type:'kreis-stack-context-add',name:'  Runagaldr  '});
+  p.reply({type:'kreis-stack-context-add',name:'Bad\nName'});
+  p.reply({type:'kreis-stack-context-add',name:'x'.repeat(61)});
+  assert.deepEqual(received,['Runagaldr']);
+});
+test('tab context lookup refuses missing stack names',async()=>{
+  const b=new NativeStackBroker(),p=make();b.attach(p);
+  const result=b.resolveTab(42);
+  p.reply({type:'kreis-stack-response',requestId:p.sent[0].requestId,ok:true,stackName:''});
+  await assert.rejects(result,/not inside a named/);
+});
