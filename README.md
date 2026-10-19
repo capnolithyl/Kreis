@@ -4,7 +4,7 @@
 
 Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeScript. Browser-tab integration uses an optional unpacked Chromium extension. Kreis 0.12 supports configurable browser profiles for Vivaldi, Chrome, Edge, Brave, and Opera (the same Chromium extension APIs; test each browser on your PC).
 
-> **Status:** Active development. The documentation below describes Kreis **0.12.2**. Planned changes are tracked in the [roadmap](ROADMAP.md).
+> **Status:** Active development. The documentation below describes Kreis **0.12.3**. Planned changes are tracked in the [roadmap](ROADMAP.md).
 
 ## Features
 
@@ -92,7 +92,7 @@ The extension popup includes **Tab matching diagnostics** for troubleshooting. A
 
 Add a new shortcut under Settings → Shortcuts & Groups and choose **Vivaldi named Tab Stack**. Select a paired Vivaldi profile and enter the **exact stack name** (case-insensitive), e.g. Runagaldr. Kreis focuses any tab in the matching native stack, without relying on a particular URL. This is Vivaldi-specific; Chrome/Edge tab groups are different.
 
-Optional **Create a new stack when missing** attempts to group two newly opened tabs with Vivaldi's undocumented `vivExtData` metadata; set an optional starting HTTP(S) URL for the first tab. It cannot restore the original tabs in a closed stack. If metadata is not exposed or native updates are rejected, creation fails without changing original tabs. Creation is experimental and **requires manual testing in Vivaldi**. Update/reload the unpacked companion extension to **v0.5.0**. Older browser shortcuts remain unchanged.
+Optional **Create a new stack when missing** attempts to group two newly opened tabs with Vivaldi's undocumented `vivExtData` metadata; set an optional starting HTTP(S) URL for the first tab. It cannot restore the original tabs in a closed stack. If metadata is not exposed or native updates are rejected, creation fails without changing original tabs. Creation is experimental and **requires manual testing in Vivaldi**. Update/reload the unpacked companion extension to **v0.5.1**. If native stacks cannot be accessed, open the companion popup and click **Check stack access**. The diagnostic compares tab-query records, populated-window records and individual-tab records, and displays counts only. It does not send URL or title data. Older browser shortcuts remain unchanged.
 
 ## Add to Kreis from outside the app
 

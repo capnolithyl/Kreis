@@ -6,8 +6,8 @@ input,select{width:100%;box-sizing:border-box;background:#202c45;border:1px soli
 button{background:#9aafff;border:0;border-radius:7px;padding:10px 18px;margin-top:12px;font-weight:700;cursor:pointer}
 button:disabled{opacity:.6;cursor:wait}#refresh-profiles{background:#2d3954;color:#d7e3ff;margin-top:7px}
 #status{font-weight:650;color:#9aafff}small{color:#a6afbf}
-#diagnostics{font:11px/1.55 Consolas,monospace;white-space:pre-wrap;word-break:break-word;background:#1e2840;border:1px solid #3d4a67;padding:10px;border-radius:7px;max-height:220px;overflow:auto;color:#c7d4f4}
-#scan{background:#2d3954;color:#d7e3ff;margin-top:8px}h2{font-size:14px;margin:22px 0 8px}
+#diagnostics,#stack-diagnostics{font:11px/1.55 Consolas,monospace;white-space:pre-wrap;word-break:break-word;background:#1e2840;border:1px solid #3d4a67;padding:10px;border-radius:7px;max-height:220px;overflow:auto;color:#c7d4f4}
+#scan,#scan-stacks{background:#2d3954;color:#d7e3ff;margin-top:8px}h2{font-size:14px;margin:22px 0 8px}
 </style></head><body>
 <h1>Kreis <small>0.5.0</small></h1>
 <p>Pair this Chromium browser profile with Kreis. Add browser profiles in Kreis Settings → Connection first, then select the matching one here. Each browser profile needs its own extension installation.</p>
@@ -22,4 +22,8 @@ button:disabled{opacity:.6;cursor:wait}#refresh-profiles{background:#2d3954;colo
 <p>After using Kreis, reopen this popup to see why it focused a tab or opened a new one. URLs are summarized locally with no query strings.</p>
 <button id="scan" type="button">Scan tabs now</button>
 <pre id="diagnostics">No lookup yet.</pre>
+<h2>Vivaldi Tab Stack diagnostics</h2>
+<p>Check whether this extension can see native stack metadata. Only property names and counts are displayed. No tab titles, URLs, or IDs are shared.</p>
+<button id="scan-stacks" type="button">Check stack access</button>
+<pre id="stack-diagnostics">Not checked.</pre>
 <script src="popup.js"></script></body></html>
