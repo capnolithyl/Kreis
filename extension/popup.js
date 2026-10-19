@@ -27,6 +27,8 @@ function formatLookup(result) {
 async function refresh() {
   const response = await chrome.runtime.sendMessage({ type: 'get-status' }).catch(() => null);
   status.textContent = response?.status || 'Disconnected';
+  document.querySelector('#native-mod-status').textContent =
+    response?.nativeModConnected ? 'Connected' : 'Not connected';
   const { lastLookup } = await chrome.storage.local.get('lastLookup');
   diagnostics.textContent = formatLookup(lastLookup);
 }
@@ -150,8 +152,14 @@ document.querySelector('#scan-stacks').addEventListener('click', async () => {
   display.textContent='Checking Vivaldi stack metadata...';
   try {
     const response = await chrome.runtime.sendMessage({type:'scan-vivaldi-stacks'});
-    display.textContent=response?.ok ? formatStackInspection(response.report) :
-      'Diagnostic failed: '+(response?.error||'No response from companion.');
+    display.textContent=response?.ok
+      ? formatStackInspection(response.report) + '\n\nVivaldi UI mod: ' +
+        (response.nativeModConnected ? 'Connected' : 'Not connected') +
+        (response.ui ? '\nUI tabs: ' + response.ui.tabCount +
+          '\nUI native metadata records: ' + response.ui.metadataCount +
+          '\nUI named stacks: ' + response.ui.namedStackCount +
+          '\nPrivate API: ' + (response.ui.privateAPI ? 'Available' : 'Unavailable') : '')
+      : 'Diagnostic failed: '+(response?.error||'No response from companion.');
   } catch(error) {
     display.textContent='Diagnostic failed: '+String(error);
   } finally {

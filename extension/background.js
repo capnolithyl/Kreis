@@ -1,9 +1,12 @@
 /* Kreis browser companion. Runs independently in any Chromium browser profile. */
 import { findMatchingTab, findMatchingTabs, lookupDiagnostics } from './tab-finder.js';
 import { contextMenuPayload } from './context-add.js';
-import { lookupStack, inspectVivaldiTabs } from './vivaldi-stack.js';
+import { inspectVivaldiTabs } from './vivaldi-stack.js';
+import { NativeStackBroker } from './native-stack-broker.js';
 
 const ENDPOINT = 'ws://127.0.0.1:43991';
+const nativeStacks = new NativeStackBroker();
+chrome.runtime.onConnectExternal.addListener(port => nativeStacks.attach(port));
 let socket = null;
 let reconnectTimer = null;
 let heartbeat = null;
@@ -112,7 +115,7 @@ async function activateTab(url, match) {
 
 async function lookupMatchingTabs(url, match, recreate=false, startUrl='') {
   if (match === 'stack') {
-    const matches = await lookupStack(chrome,url,recreate,startUrl);
+    const matches = await nativeStacks.lookup(url,recreate,startUrl);
     await recordLookup({outcome: matches.length ? 'Matched Vivaldi native Tab Stack' : 'No named Vivaldi stack',totalTabs:matches.length,readableTabs:matches.length});
     return matches.map(t=>({id:t.id,windowId:t.windowId,title:String(t.title||url).slice(0,160)}));
   }
@@ -269,11 +272,14 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 });
 chrome.runtime.onMessage.addListener((message, _sender, respond) => {
-  if (message?.type === 'get-status') { respond({ status }); return false; }
+  if (message?.type === 'get-status') { respond({status,nativeModConnected:nativeStacks.connected}); return false; }
   if (message?.type === 'connect') { clearConnection(); void connect(); respond({ ok: true }); return false; }
   if (message?.type === 'scan-vivaldi-stacks') {
-    void inspectVivaldiTabs(chrome)
-      .then(({diagnostic}) => respond({ok:true,report:diagnostic}))
+    void Promise.all([inspectVivaldiTabs(chrome),
+      nativeStacks.connected ? nativeStacks.diagnose() : Promise.resolve(null)])
+      .then(([extensionInfo,ui]) => respond({
+        ok:true,report:extensionInfo.diagnostic,nativeModConnected:nativeStacks.connected,ui
+      }))
       .catch(error => respond({ok:false,error:String(error)}));
     return true;
   }
