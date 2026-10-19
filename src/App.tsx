@@ -4,7 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { load, type Store } from '@tauri-apps/plugin-store';
 import { ArrowLeft, Check, ChevronDown, CircleHelp, Copy, Download, FileJson, Minus, Plus, RotateCcw, Save, Settings2, Trash2, Upload, X } from 'lucide-react';
-import { focusAppWindow, focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, setBrowserProfiles, hideWheel, launch, startHubDrag, listAppWindows, openFolder, openNewBrowserTab, toggleWheel, type AppWindow, type BrowserTab, type ContextAdd, takeStartupContext, windowsContextMenuEnabled, setWindowsContextMenu } from './bridge';
+import { focusAppWindow, focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, setBrowserProfiles, hideWheel, launch, startHubDrag, listAppWindows, openFolder, openNewBrowserTab, toggleWheel, type AppWindow, type BrowserTab, type ContextAdd, takeStartupContext, windowsContextMenuEnabled, setWindowsContextMenu, setSettingsPickerActive } from './bridge';
 import { icons } from './icons';
 import { createStarterEntries, selectInitialSettings } from './starterSettings.mjs';
 import { addBrowserProfile, assignProfile, BROWSER_OPTIONS, deleteBrowserProfile, normalizeBrowserSettings, profileForEntry, renameBrowserProfile } from './browserProfiles.mjs';
@@ -64,6 +64,16 @@ export default function App() {
   const importFileInput = useRef<HTMLInputElement | null>(null);
   const [importPreview, setImportPreview] = useState<SettingsImportPreview | null>(null);
   const [importFilename, setImportFilename] = useState('');
+  // React's InputHTMLAttributes does not expose the HTML file-input "cancel"
+  // event yet. Attach it to the native input node while this panel is mounted.
+  useEffect(() => {
+    if(screen!=='settings'||settingsSection!=='backup')return;
+    const input=importFileInput.current;
+    if(!input)return;
+    const onCancel=()=>{void finishSettingsFilePicker();};
+    input.addEventListener('cancel',onCancel);
+    return ()=>input.removeEventListener('cancel',onCancel);
+  },[screen,settingsSection]);
   const activeShortcut = useRef<string | null>(null);
   const store = useRef<Store | null>(null);
   const [levels, setLevels] = useState<WheelLevel[]>([]);
@@ -280,20 +290,51 @@ export default function App() {
     } catch(cause) { setError('Could not export settings: '+String(cause)); }
   }
 
+  /** The Windows picker temporarily steals focus, but that must not hide Kreis. */
+  async function openSettingsFilePicker() {
+    if(!importFileInput.current)return;
+    setError('');
+    try {
+      // Await the native guard *before* invoking the OS file picker. Without
+      // this the window's Focused(false) handler hides the entire UI.
+      await setSettingsPickerActive(true);
+      importFileInput.current.click();
+    } catch(cause) {
+      await setSettingsPickerActive(false).catch(()=>{});
+      setError('Could not open the JSON file picker: '+String(cause));
+    }
+  }
+
+  async function finishSettingsFilePicker() {
+    try {
+      // Re-show and focus even if WebView2 sent a blur for the system dialog.
+      await window.show();
+      await window.setFocus();
+    } catch(cause) {
+      setError('Could not restore Kreis after file selection: '+String(cause));
+    } finally {
+      // Also runs on Cancel and parse errors; never leave blur protection on.
+      await setSettingsPickerActive(false).catch(error=>{
+        setError('Could not restore normal window behavior: '+String(error));
+      });
+    }
+  }
+
   async function selectSettingsFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file=event.currentTarget.files?.[0];
     event.currentTarget.value='';
-    if(!file)return;
     setImportPreview(null);
     setImportFilename('');
     setError('');
     setNotice('');
     try{
+      if(!file)return;
       if(file.size>MAX_SETTINGS_FILE_BYTES)throw Error('Choose a JSON file no larger than 2 MB.');
       const parsed=parseSettingsImport(await file.text(),settings);
       setImportFilename(file.name);
       setImportPreview(parsed);
     }catch(cause){setError(String(cause));}
+    finally{await finishSettingsFilePicker();}
   }
 
   async function applySettingsImport() {
@@ -1007,7 +1048,7 @@ export default function App() {
                 aria-label="Back to Settings wheel" title="Back to Settings wheel"><ArrowLeft size={20}/></button>
               <div>
                 <div className="overline">KREIS SETTINGS</div>
-                <h1>{settingsCategoryTitle(settingsSection)} <small>0.14.0</small></h1>
+                <h1>{settingsCategoryTitle(settingsSection)} <small>0.14.1</small></h1>
                 <p>{SETTINGS_CATEGORIES.find(category => category.key === settingsSection)?.description}</p>
               </div>
             </div>
@@ -1125,7 +1166,7 @@ export default function App() {
               <input ref={importFileInput} type="file" accept=".json,application/json" style={{display:'none'}}
                 aria-label="Choose Kreis JSON file" onChange={event=>void selectSettingsFile(event)}/>
               <div className="backup-actions">
-                <button className="secondary" disabled={busy} onClick={()=>importFileInput.current?.click()}>
+                <button className="secondary" disabled={busy} onClick={()=>void openSettingsFilePicker()}>
                   <Upload size={17}/> Choose JSON file
                 </button>
                 <span className="backup-counter">{importFilename||'No file selected'}</span>

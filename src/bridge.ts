@@ -47,6 +47,9 @@ export const getPairingKey = () => invoke<string>('pairing_key');
 export const startHubDrag = () => invoke<void>('start_hub_drag');
 export const toggleWheel = () => invoke<void>('toggle_at_cursor');
 export const hideWheel = () => invoke<void>('hide_wheel');
+/** Suspend hide-on-blur while the Windows JSON import file picker is open. */
+export const setSettingsPickerActive = (active: boolean) =>
+  invoke<void>('set_file_picker_active', { active });
 
 export type ContextAdd = {
   kind: 'browser' | 'folder' | 'app' | 'vivaldi-stack';

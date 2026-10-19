@@ -9,6 +9,8 @@ mod folders;
 mod context_menu;
 
 use std::sync::Arc;
+#[cfg(windows)]
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{Emitter, Manager, PhysicalPosition, LogicalSize};
 #[cfg(windows)]
 use std::sync::Mutex;
@@ -17,6 +19,19 @@ use bridge::Bridge;
 
 #[cfg(windows)]
 struct StartupContext(Mutex<Option<context_menu::ContextEntry>>);
+
+/// File dialogs temporarily take focus from the borderless Kreis launcher.
+/// Ignore that one expected blur; still hide normally when the picker closes.
+#[cfg(windows)]
+#[derive(Default)]
+struct FilePickerState(AtomicBool);
+
+#[cfg(windows)]
+#[tauri::command]
+fn set_file_picker_active(state: tauri::State<'_, FilePickerState>, active: bool) {
+    state.0.store(active, Ordering::SeqCst);
+}
+
 
 #[cfg(windows)]
 #[tauri::command]
@@ -226,12 +241,14 @@ pub fn run() {
     builder
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![pairing_key, connected_profiles, set_browser_profiles, open_folder, focus_application, list_application_windows, focus_application_window, activate_browser, query_browser_tabs, focus_browser_tab, open_browser_tab, toggle_at_cursor, hide_wheel, hub_drag::start_hub_drag, take_startup_context, set_windows_context_menu, windows_context_menu_enabled])
+        .invoke_handler(tauri::generate_handler![pairing_key, connected_profiles, set_browser_profiles, open_folder, focus_application, list_application_windows, focus_application_window, activate_browser, query_browser_tabs, focus_browser_tab, open_browser_tab, toggle_at_cursor, hide_wheel, hub_drag::start_hub_drag, take_startup_context, set_windows_context_menu, windows_context_menu_enabled, set_file_picker_active])
         .setup(|app| {
             #[cfg(windows)]
             app.manage(StartupContext(Mutex::new(context_menu::from_args(&std::env::args().collect::<Vec<_>>()))));
             #[cfg(windows)]
             app.manage(Arc::new(hub_drag::HubDragState::default()));
+            #[cfg(windows)]
+            app.manage(FilePickerState::default());
             let token = bridge::load_or_create_token(app.handle()).map_err(std::io::Error::other)?;
             let state = Arc::new(Bridge::new(token));
             app.manage(state.clone());
@@ -275,12 +292,24 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            #[cfg(windows)]
+            if let tauri::WindowEvent::Focused(true) = event {
+                // Windows returns focus to Kreis when its native file picker closes,
+                // including when the user presses Cancel without selecting a file.
+                window.state::<FilePickerState>().0.store(false, Ordering::SeqCst);
+            }
             if let tauri::WindowEvent::Focused(false) = event {
-                // A pointer-driven window move can generate a transient blur;
-                // hiding at that moment interrupts the drag and loses the window.
                 #[cfg(windows)]
-                if window.state::<Arc<hub_drag::HubDragState>>().should_ignore_blur() {
-                    return;
+                {
+                    // File chooser blur is deliberate, unlike switching to another
+                    // application. Do not hide Kreis behind its own file dialog.
+                    if window.state::<FilePickerState>().0.load(Ordering::SeqCst) {
+                        return;
+                    }
+                    // Dragging the hub can also produce transient blur events.
+                    if window.state::<Arc<hub_drag::HubDragState>>().should_ignore_blur() {
+                        return;
+                    }
                 }
                 let _ = window.hide();
             }
