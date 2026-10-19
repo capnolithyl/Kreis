@@ -4,7 +4,7 @@
 
 Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeScript. Browser-tab integration uses an optional unpacked Chromium extension. Kreis 0.12 supports configurable browser profiles for Vivaldi, Chrome, Edge, Brave, and Opera (the same Chromium extension APIs; test each browser on your PC).
 
-> **Status:** Active development. The documentation below describes Kreis **0.13.0**. Planned changes are tracked in the [roadmap](ROADMAP.md).
+> **Status:** Active development. The documentation below describes Kreis **0.14.0**. Planned changes are tracked in the [roadmap](ROADMAP.md).
 
 ## Features
 
@@ -20,6 +20,7 @@ Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeS
 - **Generic first run:** Starts with familiar websites, Downloads, and a sample nested Tools group. Your saved configuration remains untouched by updates.
 - **Browser profiles:** Add, rename and remove browser profiles, with stable IDs and explicit browser selection for each shortcut. Deletion offers reassignment or leaves shortcuts unassigned.
 - **Local configuration:** Settings and shortcuts are saved locally; no Kreis account is required.
+- **Portable JSON backups:** Export and import all shortcuts, groups, browser profiles, appearance, and hotkey. Preview before replacing anything, or import an AI-edited shortcuts-only JSON.
 
 ## Terminology
 
@@ -57,6 +58,32 @@ To nest a group, set its **Parent group** (or the shortcut's **Placement**). The
 **Fresh installs start with a neutral layout:** Google, YouTube, Wikipedia, Downloads, and a **Tools** group containing GitHub and Notepad. Browser shortcuts open in the system default browser without the optional Vivaldi extension; connecting the extension enables existing-tab focusing. Downloads uses Windows' actual Downloads location and Notepad uses the built-in Windows app.
 
 **Existing settings are preserved when updating.** Kreis saves starter shortcuts on first launch. An existing layout, including an intentionally empty Kreis, is never overwritten by a version update. **Settings → Shortcuts & Groups → Restore starter shortcuts** lets you intentionally restore the samples (this replaces the current shortcuts and groups).
+
+### Export and import Kreis settings (0.14.0)
+
+Open **Settings → Backup & Restore**. **Export current settings** downloads a human-editable JSON backup including all shortcuts, nested groups and their order, custom icons and colors, Chromium browser profiles, wheel appearance, and the hotkey. The browser companion's **pairing key is intentionally excluded**; don't publicly share shortcut URLs and local paths if they are sensitive.
+
+To restore or apply an AI-edited file, choose **Import configuration → Choose JSON file**. Kreis validates its shortcuts, browser profile IDs, and nested groups, shows a preview of what sections will change, and requires **Apply import** before saving. Export your current settings first to preserve a rollback copy. Importing an unavailable hotkey does not overwrite the saved configuration.
+
+A complete export uses this format:
+
+```json
+{
+  "format": "kreis-settings",
+  "version": 1,
+  "settings": {
+    "shortcut": "Control+Space",
+    "appearance": {"fontFamily":"Inter","labelSize":12,"centerSize":16},
+    "browserProfiles": [{"id":"Work","name":"Work","browserId":"vivaldi"}],
+    "entries": [
+      {"id":"web","title":"Example","type":"browser","target":"https://example.com/",
+       "profileId":"Work","icon":"globe","color":"#6385d7"}
+    ]
+  }
+}
+```
+
+An AI-generated layout can also consist of just `{"entries":[...]}`. This replaces only shortcuts and groups; omitted hotkey, appearance, and browser profiles stay untouched. Group children use `groupId` referencing a parent group entry's `id`, and entry order is preserved. Browser shortcuts may refer to an existing `profileId`.
 
 ### Work with the wheel
 

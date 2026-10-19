@@ -49,6 +49,8 @@ jobs:
         run: npm run check:wheel-color
       - name: Test nested group hierarchy
         run: npm run check:groups
+      - name: Test settings JSON import and export
+        run: npm run check:settings-io
       - name: Validate Explorer tab lookup script syntax
         shell: pwsh
         run: |

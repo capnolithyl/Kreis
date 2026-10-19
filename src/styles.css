@@ -471,3 +471,19 @@ input::placeholder { color: #687692; }
   .profile-create-row button { grid-column:1/-1; }
   .browser-profile-row { flex-wrap:wrap; }
 }
+
+/* Settings backup and import remain part of the familiar category screen. */
+.settings-backup { max-width:760px; }
+.settings-backup .helper { font-size:12px; }
+.backup-actions { display:flex; align-items:center; gap:14px; margin-top:18px; flex-wrap:wrap; }
+.backup-counter { font-size:12px; color:#96a7c3; overflow-wrap:anywhere; }
+.backup-preview { margin-top:18px; padding:16px 18px; border:1px solid #566889; background:#1a2334; border-radius:12px; }
+.backup-preview-heading { display:flex; align-items:center; gap:11px; color:#d9e6fb; }
+.backup-preview-heading > div { display:flex; flex-direction:column; min-width:0; gap:3px; }
+.backup-preview-heading small { color:#97a6be; overflow-wrap:anywhere; font-size:11px; }
+.backup-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:16px; }
+.backup-summary > div { display:flex; flex-direction:column; gap:3px; background:#10182a; border-radius:7px; padding:9px 11px; }
+.backup-summary strong { font-size:20px; font-variant-numeric:tabular-nums; }
+.backup-summary span { font-size:11px; color:#97a8c1; }
+.backup-preview .backup-actions { justify-content:flex-end; }
+.backup-warning { color:#f3c58b; font-size:12px; line-height:1.45; margin:10px 0 0; }
