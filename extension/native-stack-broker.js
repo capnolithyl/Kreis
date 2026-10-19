@@ -5,7 +5,7 @@ export const UI_ID='mpognobbkildjkofajifpdfhcoklimli';
 export const PORT_NAME='kreis-native-stack-v1';
 
 export class NativeStackBroker {
-  constructor(timeout=10000){this.ports=new Set();this.pending=new Map();this.timeout=timeout;}
+  constructor(timeout=10000){this.ports=new Set();this.pending=new Map();this.timeout=timeout;this.onContextAdd=null;}
   get connected(){return this.ports.size>0;}
   attach(port){
     if(port?.name!==PORT_NAME || port.sender?.id!==UI_ID ||
@@ -25,11 +25,27 @@ export class NativeStackBroker {
     return true;
   }
   receive(port,message){
+    if(!this.ports.has(port))return;
+    if(message?.type==='kreis-stack-context-add'){
+      const name=message.name;
+      if(typeof name==='string'&&name.trim()&&name.trim().length<=60&&
+        !/[\x00-\x1f\x7f]/.test(name)&&typeof this.onContextAdd==='function'){
+        this.onContextAdd(name.trim());
+      }
+      return;
+    }
     if(message?.type!=='kreis-stack-response'||typeof message.requestId!=='string')return;
     const p=this.pending.get(message.requestId);
     if(!p||p.port!==port)return;
     clearTimeout(p.timer);this.pending.delete(message.requestId);
     if(message.ok!==true)return p.reject(Error(String(message.error||'Native Vivaldi stack lookup failed.').slice(0,280)));
+    if(p.action==='resolve-tab'){
+      const name=message.stackName;
+      if(typeof name!=='string'||!name.trim()||name.trim().length>60||
+        /[\x00-\x1f\x7f]/.test(name))
+        return p.reject(Error('This tab is not inside a named Vivaldi Tab Stack.'));
+      return p.resolve(name.trim());
+    }
     if(p.action==='diagnose'){
       const r=message.report;
       if(!r||typeof r!=='object')return p.reject(Error('Invalid mod diagnostics.'));
@@ -65,6 +81,10 @@ export class NativeStackBroker {
     if(startUrl){try{const u=new URL(startUrl);if(!['http:','https:'].includes(u.protocol))throw Error();}
       catch{return Promise.reject(Error('Starting URL must be HTTP(S).'));}}
     return this.request('lookup',{name:name.trim(),recreate:recreate===true,startUrl});
+  }
+  resolveTab(tabId){
+    if(!Number.isInteger(tabId)||tabId<0)return Promise.reject(Error('Invalid Vivaldi tab ID.'));
+    return this.request('resolve-tab',{tabId});
   }
   diagnose(){return this.request('diagnose');}
 }

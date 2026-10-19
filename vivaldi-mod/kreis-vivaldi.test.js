@@ -100,7 +100,7 @@ function environment(tabs,overrides={}) {
     }
     throw Error('No native mod response');
   }
-  return {request,created,removed,updated,moved,named,groupProps,tabs,window};
+  return {request,created,removed,updated,moved,named,groupProps,tabs,window,sent};
 }
 test('finds a stack by name without examining URLs',async()=>{
   const ctx=environment([tab(1,'a','Kreis'),tab(2,'a','Kreis',true),tab(3,'b','Other')]);
@@ -271,4 +271,74 @@ test('group created but unreadable metadata does not delete new tabs',async()=>{
   assert.match(r.error,/two new tabs were kept/);
   assert.equal(ctx.removed.length,0);
   assert.equal(ctx.tabs.length,3);
+});
+
+test('native tab context resolves the clicked stack, not the active tab',async()=>{
+  const ctx=environment([
+    tab(1,'group-a','Kreis',true),
+    tab(2,'group-b','Runagaldr'),
+    tab(3,'group-b','Runagaldr')
+  ]);
+  const r=await ctx.request('resolve-tab',{tabId:3});
+  assert.equal(r.ok,true);
+  assert.equal(r.stackName,'Runagaldr');
+  assert.deepEqual(ctx.created,[]);
+});
+test('unnamed or ungrouped tabs cannot create stack shortcuts',async()=>{
+  const ctx=environment([{id:1,windowId:7,active:true},
+    {id:2,windowId:7,vivExtData:JSON.stringify({group:'untitled'})}]);
+  const a=await ctx.request('resolve-tab',{tabId:1});
+  const b=await ctx.request('resolve-tab',{tabId:2});
+  assert.equal(a.stackName,null);
+  assert.equal(b.stackName,null);
+});
+
+test('Ctrl+right-click on a named stack offers Add to Kreis without changing tabs',async()=>{
+  const calls={};let button=null,prevented=false,stopped=false;
+  const wrapper={getAttribute:key=>key==='data-id'?'tab-runagaldr-id':null};
+  const position={
+    closest:selector=>selector==='.tab-strip'?{}:null,
+    matches:()=>false,
+    querySelector:()=>wrapper
+  };
+  const target={closest:selector=>selector==='.tab-position'||selector==='.tab-strip .tab-position'?position:null};
+  const document={
+    addEventListener(type,listener){calls[type]=listener;},
+    createElement(){
+      return button={
+        style:{},listeners:{},addEventListener(type,fn){this.listeners[type]=fn;},
+        remove(){this.removed=true;},contains:()=>false,focus(){}
+      };
+    },
+    body:{appendChild(){}}
+  };
+  const ctx=environment([
+    tab(1,'runagaldr-id','Runagaldr'),tab(2,'runagaldr-id','Runagaldr'),
+    tab(3,'other','Other',true)
+  ],{document});
+  calls.contextmenu({
+    ctrlKey:true,target,clientX:100,clientY:200,
+    preventDefault(){prevented=true;},stopImmediatePropagation(){stopped=true;}
+  });
+  await new Promise(resolve=>setTimeout(resolve,30));
+  assert.equal(prevented,true);
+  assert.equal(stopped,true);
+  assert.ok(button);
+  assert.match(button.textContent,/Runagaldr/);
+  button.listeners.click();
+  assert.equal(ctx.sent.at(-1).type,'kreis-stack-context-add');
+  assert.equal(ctx.sent.at(-1).name,'Runagaldr');
+  assert.equal(ctx.created.length,0);
+  assert.equal(ctx.updated.length,0);
+});
+
+test('ordinary right-click is left to native Vivaldi menu',async()=>{
+  const calls={};let prevented=false;
+  const document={addEventListener(type,fn){calls[type]=fn;}};
+  environment([tab(1,'stack','Kreis')],{document});
+  calls.contextmenu({
+    ctrlKey:false,target:{closest:()=>({})},
+    preventDefault(){prevented=true;},stopImmediatePropagation(){}
+  });
+  assert.equal(prevented,false);
 });

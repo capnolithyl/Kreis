@@ -49,7 +49,7 @@ export const toggleWheel = () => invoke<void>('toggle_at_cursor');
 export const hideWheel = () => invoke<void>('hide_wheel');
 
 export type ContextAdd = {
-  kind: 'browser' | 'folder' | 'app';
+  kind: 'browser' | 'folder' | 'app' | 'vivaldi-stack';
   target: string;
   title: string;
   profile?: string | null;

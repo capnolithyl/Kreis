@@ -57,6 +57,71 @@
      return tab;
    }));
  }
+ // Resolve named group using real native metadata, never tab title or URL.
+ function nameForGroup(tabs,group){
+   if(!group)return null;
+   const n=tabs.filter(t=>meta(t)?.group===group)
+     .map(t=>meta(t)?.fixedGroupTitle)
+     .find(n=>typeof n==='string'&&n.trim());
+   return typeof n==='string'?n.trim():null;
+ }
+ async function nameForTab(tabId){
+   const tabs=await readTabs();
+   return nameForGroup(tabs,meta(tabs.find(t=>t.id===tabId))?.group);
+ }
+ // Resolve the user-clicked stack in Vivaldi's own tab strip. Stack nodes
+ // expose group IDs while individual member tabs expose numeric tab IDs.
+ function nameForElement(element,tabs){
+   const tab=element?.closest?.('.tab-position');
+   if(!tab?.closest?.('.tab-strip'))return null;
+   const wrapper=tab.matches?.('[data-id]')?tab:
+      tab.querySelector?.('.tab-wrapper[data-id], [data-id]');
+   const id=wrapper?.getAttribute?.('data-id')?.replace(/^tab-/,'');
+   if(!id)return null;
+   const member=tabs.find(t=>String(t.id)===id);
+   if(member)return nameForGroup(tabs,meta(member)?.group);
+   const groups=[...new Set(tabs.map(t=>meta(t)?.group).filter(Boolean))];
+   const group=groups.find(g=>g===id)||
+     (id.length>=8?groups.find(g=>g.startsWith(id)):null);
+   return nameForGroup(tabs,group);
+ }
+ let activePort=null;
+ function installContextFallback(){
+   if(typeof document==='undefined')return;
+   let button=null;
+   function dismiss(){button?.remove();button=null;}
+   document.addEventListener('pointerdown',e=>{
+     if(button&&!button.contains(e.target))dismiss();
+   },true);
+   document.addEventListener('keydown',e=>{if(e.key==='Escape')dismiss();},true);
+   // Native tab menu hooks depend on Vivaldi/Chromium versions. Preserve
+   // normal right-click; Ctrl+right-click invokes a small dedicated action.
+   document.addEventListener('contextmenu',e=>{
+     if(!e.ctrlKey||!e.target?.closest?.('.tab-strip .tab-position'))return;
+     e.preventDefault();e.stopImmediatePropagation();
+     dismiss();
+     const target=e.target,x=e.clientX,y=e.clientY;
+     void readTabs().then(tabs=>{
+       const name=nameForElement(target,tabs);
+       if(!name||!activePort)return;
+       const b=document.createElement('button');
+       b.type='button';
+       b.textContent='Add "'+name+'" to Kreis';
+       b.title='Add named Vivaldi Tab Stack to Kreis';
+       b.style.cssText='position:fixed;left:'+Math.max(4,x)+'px;top:'+
+         Math.max(4,y)+'px;z-index:2147483647;padding:10px 14px;'+
+         'background:#242a36;color:white;border:1px solid #7a8ea9;'+
+         'border-radius:8px;font:13px system-ui;cursor:pointer;'+
+         'box-shadow:0 8px 24px #0008;max-width:300px';
+       b.addEventListener('click',()=>{
+         dismiss();
+         try{activePort?.postMessage({type:'kreis-stack-context-add',name});}
+         catch(error){console.warn('Kreis context add failed:',error);}
+       });
+       document.body.appendChild(b);button=b;b.focus();
+     }).catch(e=>console.warn('Kreis named stack lookup:',e));
+   },true);
+ }
  async function create(name,url){
    if(url){let u;try{u=new URL(url);}catch{throw Error('Invalid stack starting URL.');}
      if(!['http:','https:'].includes(u.protocol))throw Error('Only HTTP(S) starting URLs are supported.');}
@@ -153,6 +218,10 @@
    }
  }
  async function handle(message){
+   if(message.action==='resolve-tab'){
+     if(!Number.isInteger(message.tabId)||message.tabId<0)throw Error('Invalid right-click tab ID.');
+     return {stackName:await nameForTab(message.tabId)};
+   }
    if(message.action==='diagnose')return {report:diagnose(await readTabs())};
    if(message.action!=='lookup')throw Error('Unknown Kreis native stack command.');
    const name=typeof message.name==='string'?message.name.trim():'';
@@ -169,6 +238,7 @@
    let port;
    try{port=chrome.runtime.connect(EXT_ID,{name:PORT});}
    catch(e){console.warn('Kreis UI mod connection failed',e);setTimeout(connect,5000);return;}
+   activePort=port;
    port.onMessage.addListener(message=>{
      if(message?.type!=='kreis-stack-request'||typeof message.requestId!=='string')return;
      Promise.resolve().then(()=>handle(message))
@@ -176,8 +246,9 @@
        .catch(e=>{try{port.postMessage({type:'kreis-stack-response',requestId:message.requestId,
          ok:false,error:String(e).slice(0,250)});}catch{}});
    });
-   port.onDisconnect.addListener(()=>{if(chrome.runtime.lastError)console.info('Kreis mod:',chrome.runtime.lastError.message);setTimeout(connect,5000);});
+   port.onDisconnect.addListener(()=>{if(activePort===port)activePort=null;if(chrome.runtime.lastError)console.info('Kreis mod:',chrome.runtime.lastError.message);setTimeout(connect,5000);});
    console.info('Kreis Vivaldi native stack mod loaded.');
  }
+ installContextFallback();
  connect();
 })();
