@@ -47,9 +47,24 @@
      if(!['http:','https:'].includes(u.protocol))throw Error('Only HTTP(S) starting URLs are supported.');}
    // Do not create any tabs if this Vivaldi version lacks real native group commands.
    // chrome.tabs.update({vivExtData}) can silently ignore these fields.
-   const native=typeof vivaldi!=='undefined'&&vivaldi.tabsPrivate;
-   if(typeof native?.move!=='function'||typeof native?.setExtData!=='function')
-     throw Error('This Vivaldi version has no native stack creation API. No tabs changed.');
+   // Private APIs may be available under the Vivaldi or Chromium namespace,
+   // depending on the UI extension build. Never infer support from .get alone.
+   const vApi=typeof vivaldi!=='undefined' ? vivaldi.tabsPrivate : null;
+   const cApi=chrome.tabsPrivate || null;
+   const sources=[['vivaldi.tabsPrivate',vApi],['chrome.tabsPrivate',cApi]];
+   // Prefer a complete API from one namespace. Both methods must exist
+   // before creating tabs, otherwise report read-only capability flags.
+   const provider=sources.find(([,api])=>
+     typeof api?.move==='function'&&typeof api?.setExtData==='function');
+   if(!provider){
+     const summary=sources.map(([label,api])=>
+       label+' [get='+ (typeof api?.get==='function'?'yes':'no')+
+       ', move='+ (typeof api?.move==='function'?'yes':'no')+
+       ', setExtData='+ (typeof api?.setExtData==='function'?'yes':'no')+
+       ']').join('; ');
+     throw Error('Native stack creation unavailable: '+summary+'. No tabs changed.');
+   }
+   const native=provider[1];
    const w=await chrome.windows.getLastFocused({windowTypes:['normal']});
    if(!Number.isInteger(w?.id))throw Error('No normal Vivaldi window is focused.');
    const created=[];
