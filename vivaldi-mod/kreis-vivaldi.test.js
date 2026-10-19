@@ -35,7 +35,8 @@ function environment(tabs,overrides={}) {
       async update(id,values){
         updated.push({id,values});
         const t=tabs.find(t=>t.id===id);
-        if(values.vivExtData)t.vivExtData=values.vivExtData;
+        if(values.vivExtData && !overrides.ignoreVivExtDataWrites)
+          t.vivExtData=values.vivExtData;
         return t;
       },
       async remove(ids){removed.push(...ids);for(const id of ids){
@@ -67,6 +68,7 @@ function environment(tabs,overrides={}) {
       }
     }
   };
+  if(overrides.omitSetExtData===true)delete native.setExtData;
   if(overrides.enableChromeNamespace===true)api.tabsPrivate=native;
   const window={};
   runInNewContext(source,{
@@ -191,12 +193,45 @@ test('falls back to the Chromium private namespace when Vivaldi UI lacks creatio
   assert.equal(ctx.tabs[0],original);
 });
 
-test('capability errors identify a missing naming method before creating anything',async()=>{
+test('move-only Vivaldi UI can name an already-created group via vivExtData',async()=>{
+  const original=tab(1,'safe-group','Existing');
+  const ctx=environment([original],{omitSetExtData:true});
+  const r=await ctx.request('lookup',{
+    name:'Runagaldr',recreate:true,startUrl:'https://runagaldr.com'
+  });
+  assert.equal(r.ok,true);
+  assert.equal(ctx.created.length,2);
+  assert.equal(ctx.removed.length,0);
+  assert.equal(ctx.moved.length,1);
+  assert.equal(ctx.named.length,0);
+  assert.equal(ctx.updated.length,2);
+  for(const {id,values} of ctx.updated){
+    assert.ok(ctx.created.includes(id));
+    const data=JSON.parse(values.vivExtData);
+    assert.equal(data.group,'new-vivaldi-group');
+    assert.equal(data.fixedGroupTitle,'Runagaldr');
+  }
+  assert.equal(original.vivExtData,'{"group":"safe-group","fixedGroupTitle":"Existing"}');
+});
+
+test('silent naming failures remove only new tabs, keeping old groups intact',async()=>{
+  const original=tab(1,'safe-group','Important');
+  const ctx=environment([original],{omitSetExtData:true,ignoreVivExtDataWrites:true});
+  const r=await ctx.request('lookup',{name:'Runagaldr',recreate:true});
+  assert.equal(r.ok,false);
+  assert.match(r.error,/did not preserve its requested name/);
+  assert.equal(ctx.created.length,2);
+  assert.equal(ctx.removed.length,2);
+  assert.equal(ctx.tabs.length,1);
+  assert.equal(ctx.tabs[0],original);
+});
+
+test('a missing native move API never opens temporary tabs',async()=>{
   const ctx=environment([tab(1,'a','Kreis')],{
-    vivaldi:{tabsPrivate:{get:async()=>({}),move:async()=>({success:true,group:'new'})}}
+    vivaldi:{tabsPrivate:{get:async()=>({}),setExtData:async()=>{}}}
   });
   const r=await ctx.request('lookup',{name:'Runagaldr',recreate:true});
   assert.equal(r.ok,false);
-  assert.match(r.error,/vivaldi\.tabsPrivate \[get=yes, move=yes, setExtData=no\]/);
+  assert.match(r.error,/Native stack creation unavailable/);
   assert.equal(ctx.created.length,0);
 });
