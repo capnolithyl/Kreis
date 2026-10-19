@@ -83,7 +83,7 @@ export default function App() {
   latestSettings.current = settings;
 
   function openContextPicker(entry: ContextAdd) {
-    if (!['browser', 'folder', 'app'].includes(entry.kind) || !entry.target) return;
+    if (!['browser', 'folder', 'app', 'vivaldi-stack'].includes(entry.kind) || !entry.target) return;
     const appearance = defaultContextAppearance(entry.kind);
     setContextAdd(entry);
     setContextLabel(entry.title.slice(0, 30) || 'New shortcut');
@@ -92,8 +92,10 @@ export default function App() {
     setContextColorOpen(false);
     setContextGroupId(suggestParent(latestSettings.current.entries, MAX_ITEMS_PER_WHEEL) || '');
     const configured = latestSettings.current.browserProfiles;
-    setContextProfile(configured.some(profile => profile.id === entry.profile)
-      ? entry.profile! : (configured[0]?.id || ''));
+    const eligible = entry.kind === 'vivaldi-stack'
+      ? configured.filter(profile => profile.browserId === 'vivaldi') : configured;
+    setContextProfile(eligible.some(profile => profile.id === entry.profile)
+      ? entry.profile! : (eligible[0]?.id || ''));
     setError('');
     setNotice('');
     setScreen('context');
@@ -212,11 +214,12 @@ export default function App() {
       type: contextAdd.kind,
       target: contextAdd.target,
       profile: contextProfile,
-      ...(contextAdd.kind === 'browser' ? {
+      ...(['browser', 'vivaldi-stack'].includes(contextAdd.kind) ? {
         profileId: contextProfile,
         browserId: settings.browserProfiles.find(profile => profile.id === contextProfile)?.browserId
       } : {}),
-      match: contextAdd.kind === 'browser' ? 'exact' : 'prefix',
+      ...(contextAdd.kind === 'vivaldi-stack' ? { recreateStack: false } : {}),
+      match: ['browser', 'vivaldi-stack'].includes(contextAdd.kind) ? 'exact' : 'prefix',
       icon: contextIcon,
       color: contextColor,
       groupId: contextGroupId || undefined
@@ -814,7 +817,7 @@ export default function App() {
         <div className="quick-add-shell">
           <div className="overline">ADD TO KREIS</div>
           <div className="quick-add-heading">
-            <h1>New {contextAdd.kind === 'browser' ? 'browser link' : contextAdd.kind === 'folder' ? 'folder' : 'application'} shortcut</h1>
+            <h1>New {contextAdd.kind === 'browser' ? 'browser link' : contextAdd.kind === 'vivaldi-stack' ? 'Vivaldi Tab Stack' : contextAdd.kind === 'folder' ? 'folder' : 'application'} shortcut</h1>
             <button className="icon-button" onClick={() => void closeLauncher()} aria-label="Cancel Add to Kreis"><X/></button>
           </div>
           <p className="quick-add-target" title={contextAdd.target}>{contextAdd.target}</p>
@@ -833,10 +836,10 @@ export default function App() {
                 ))}
               </select>
             </label>
-            {contextAdd.kind === 'browser' && <label>Browser profile
+            {(contextAdd.kind === 'browser' || contextAdd.kind === 'vivaldi-stack') && <label>Browser profile
               <select value={contextProfile} onChange={event => setContextProfile(event.target.value)}>
                 {!settings.browserProfiles.some(p => p.id === contextProfile) && <option value="">Choose a profile</option>}
-                {settings.browserProfiles.map(p => <option key={p.id} value={p.id}>
+                {settings.browserProfiles.filter(p => contextAdd.kind !== 'vivaldi-stack' || p.browserId === 'vivaldi').map(p => <option key={p.id} value={p.id}>
                   {BROWSER_OPTIONS.find(b => b.id === p.browserId)?.name} · {p.name}
                 </option>)}
               </select>
@@ -871,10 +874,13 @@ export default function App() {
             </div>
             <p className="helper">Choose a destination, icon and color. Nothing is saved until you confirm.</p>
           </div>
+          {contextAdd.kind === 'vivaldi-stack' && <p className="helper">Saves a named-stack shortcut. Automatic recreation starts disabled and can be enabled later in settings.</p>}
           {error && <p className="dialog-error" role="alert">{error}</p>}
           <div className="quick-add-actions">
             <button className="secondary" onClick={() => void closeLauncher()}>Cancel</button>
-            <button className="primary" disabled={busy || (contextAdd.kind === 'browser' && !settings.browserProfiles.some(p => p.id === contextProfile))} onClick={() => void saveContextAddition()}><Check size={16}/> Add shortcut</button>
+            <button className="primary" disabled={busy || (['browser', 'vivaldi-stack'].includes(contextAdd.kind) &&
+              !settings.browserProfiles.some(p => p.id === contextProfile &&
+                (contextAdd.kind !== 'vivaldi-stack' || p.browserId === 'vivaldi')))} onClick={() => void saveContextAddition()}><Check size={16}/> Add shortcut</button>
           </div>
         </div>
       ) : screen === 'wheel' ? (

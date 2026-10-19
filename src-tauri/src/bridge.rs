@@ -258,21 +258,33 @@ async fn serve_client(stream: tokio::net::TcpStream, bridge: Arc<Bridge>, app: t
                             // Only a paired browser profile can ask to populate the picker.
                             // Never accept code, executable paths or arbitrary URL schemes.
                             #[cfg(windows)]
-                            if let (Some(name), Some(url)) = (
-                                profile.as_ref(), value.get("url").and_then(Value::as_str)
-                            ) {
-                                if url.len() <= 4096 && url::Url::parse(url).is_ok_and(|parsed|
-                                    matches!(parsed.scheme(), "http" | "https")
-                                ) {
-                                    let title = value.get("title").and_then(Value::as_str)
-                                        .unwrap_or("Browser link").trim()
-                                        .chars().take(30).collect::<String>();
-                                    crate::present_context_entry(&app, crate::context_menu::ContextEntry {
-                                        kind: "browser".into(), target: url.into(),
-                                        title: if title.is_empty() { "Browser link".into() } else { title },
-                                        profile: Some(name.to_string()),
-                                    });
-                                    let _ = tx.send(json!({"type":"context-add-received"}).to_string());
+                            if let Some(name) = profile.as_ref() {
+                                if value.get("kind").and_then(Value::as_str) == Some("vivaldi-stack") {
+                                    let stack = value.get("name").and_then(Value::as_str).unwrap_or("").trim();
+                                    if !stack.is_empty() && stack.chars().count() <= 60
+                                        && !stack.chars().any(char::is_control)
+                                        && bridge.profile(name).is_some_and(|p| p.browser_id == "vivaldi")
+                                    {
+                                        crate::present_context_entry(&app, crate::context_menu::ContextEntry {
+                                            kind: "vivaldi-stack".into(), target: stack.to_string(),
+                                            title: stack.chars().take(30).collect(), profile: Some(name.to_string()),
+                                        });
+                                        let _ = tx.send(json!({"type":"context-add-received"}).to_string());
+                                    }
+                                } else if let Some(url) = value.get("url").and_then(Value::as_str) {
+                                    if url.len() <= 4096 && url::Url::parse(url).is_ok_and(|parsed|
+                                        matches!(parsed.scheme(), "http" | "https")
+                                    ) {
+                                        let title = value.get("title").and_then(Value::as_str)
+                                            .unwrap_or("Browser link").trim()
+                                            .chars().take(30).collect::<String>();
+                                        crate::present_context_entry(&app, crate::context_menu::ContextEntry {
+                                            kind: "browser".into(), target: url.into(),
+                                            title: if title.is_empty() { "Browser link".into() } else { title },
+                                            profile: Some(name.to_string()),
+                                        });
+                                        let _ = tx.send(json!({"type":"context-add-received"}).to_string());
+                                    }
                                 }
                             }
                         }
