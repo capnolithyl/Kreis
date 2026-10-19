@@ -67,6 +67,7 @@ function environment(tabs,overrides={}) {
       }
     }
   };
+  if(overrides.enableChromeNamespace===true)api.tabsPrivate=native;
   const window={};
   runInNewContext(source,{
     location:{protocol:'chrome-extension:',hostname:'mpognobbkildjkofajifpdfhcoklimli',
@@ -151,7 +152,9 @@ test('missing private creation methods do not even open temporary tabs',async()=
   });
   const r=await ctx.request('lookup',{name:'Runagaldr',recreate:true});
   assert.equal(r.ok,false);
-  assert.match(r.error,/no native stack creation API/i);
+  assert.match(r.error,/Native stack creation unavailable/);
+  assert.match(r.error,/vivaldi\\.tabsPrivate \\[get=yes, move=no, setExtData=no\\]/);
+  assert.match(r.error,/chrome\\.tabsPrivate \\[get=no, move=no, setExtData=no\\]/);
   assert.equal(ctx.created.length,0);
   assert.equal(ctx.removed.length,0);
 });
@@ -173,3 +176,27 @@ test('native naming failures roll back only the created tabs',async()=>{
   assert.equal(ctx.tabs[0],original);
 });
 
+
+test('falls back to the Chromium private namespace when Vivaldi UI lacks creation functions',async()=>{
+  const original=tab(1,'original','Kreis');
+  const ctx=environment([original],{
+    enableChromeNamespace:true,
+    vivaldi:{tabsPrivate:{get:async()=>({})}}
+  });
+  const r=await ctx.request('lookup',{name:'Runagaldr',recreate:true,startUrl:'https://runagaldr.com'});
+  assert.equal(r.ok,true);
+  assert.equal(ctx.created.length,2);
+  assert.equal(ctx.moved.length,1);
+  assert.equal(ctx.named[0].groupTitle,'Runagaldr');
+  assert.equal(ctx.tabs[0],original);
+});
+
+test('capability errors identify a missing naming method before creating anything',async()=>{
+  const ctx=environment([tab(1,'a','Kreis')],{
+    vivaldi:{tabsPrivate:{get:async()=>({}),move:async()=>({success:true,group:'new'})}}
+  });
+  const r=await ctx.request('lookup',{name:'Runagaldr',recreate:true});
+  assert.equal(r.ok,false);
+  assert.match(r.error,/vivaldi\\.tabsPrivate \\[get=yes, move=yes, setExtData=no\\]/);
+  assert.equal(ctx.created.length,0);
+});
