@@ -47,7 +47,7 @@ function environment(tabs,overrides={}) {
   const window={};
   runInNewContext(source,{
     location:{protocol:'chrome-extension:',hostname:'mpognobbkildjkofajifpdfhcoklimli',
-      pathname:'/window.html'},window,chrome:api,crypto:webcrypto,setTimeout,
+      pathname:'/window.html'},window,chrome:api,crypto:webcrypto,URL,setTimeout,
     console:{info(){},warn(){}},...overrides
   });
   async function request(action,extra={}){
