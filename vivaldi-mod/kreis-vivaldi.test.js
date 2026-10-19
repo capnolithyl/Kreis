@@ -80,8 +80,10 @@ function environment(tabs,overrides={}) {
   async function request(action,extra={}){
     const requestId='test'+(sent.length+1);
     handler({type:'kreis-stack-request',requestId,action,...extra});
-    for(let i=0;i<20;i++){
-      await new Promise(resolve=>setImmediate(resolve));
+    // The mod intentionally waits for Vivaldi's asynchronous group metadata.
+    // A 20-tick immediate loop exits before the timeout-and-rollback path runs.
+    for(let i=0;i<150;i++){
+      await new Promise(resolve=>setTimeout(resolve,20));
       const result=sent.find(m=>m.requestId===requestId);
       if(result)return result;
     }
