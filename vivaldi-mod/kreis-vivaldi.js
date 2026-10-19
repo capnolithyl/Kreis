@@ -146,7 +146,7 @@
      if(groupCreated){
        // Preserve a real stack and the requested starting URL. The user can
        // inspect/rename it. Only report failure; do not destroy their new work.
-       throw Error(String(e).replace(/^Error:\\s*/, '')+' The two new tabs were kept.');
+       throw Error(String(e).replace(/^Error:\s*/, '')+' The two new tabs were kept.');
      }
      if(created.length)try{await chrome.tabs.remove(created);}catch{}
      throw e;
