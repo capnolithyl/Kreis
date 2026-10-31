@@ -92,6 +92,16 @@ test('permits old 12-slice wheels but rejects 13 and notes legacy layout',()=>{
   assert.ok(accepted.warnings.some(x=>/legacy/.test(x)));
   assert.throws(()=>parseSettingsImport(JSON.stringify({entries:getItems(13)}),original),/12 items/);
 });
+test('dynamic Live Tabs shortcuts survive JSON imports without fixed URLs or profiles',()=>{
+  const original=base();
+  const result=parseSettingsImport(JSON.stringify({entries:[
+    {id:'live',type:'live-tabs',title:'Live Tabs',icon:'layers',color:'#4c87a8'}
+  ]}),original);
+  assert.equal(result.settings.entries[0].type,'live-tabs');
+  assert.equal(result.settings.entries[0].target,'connected');
+  const exported=serializeSettings(result.settings);
+  assert.equal(parseSettingsImport(exported,original).settings.entries[0].type,'live-tabs');
+});
 test('empty entries intentionally replaces shortcuts, never silently populating starters',()=>{
   const original=base();
   const result=parseSettingsImport('{"entries":[]}',original);

@@ -4,7 +4,7 @@
 
 Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeScript. Browser-tab integration uses an optional unpacked Chromium extension. Kreis 0.12 supports configurable browser profiles for Vivaldi, Chrome, Edge, Brave, and Opera (the same Chromium extension APIs; test each browser on your PC).
 
-> **Status:** Active development. The documentation below describes Kreis **0.14.1**. Planned changes are tracked in the [roadmap](ROADMAP.md).
+> **Status:** Active development. The documentation below describes Kreis **0.15.0**. Planned changes are tracked in the [roadmap](ROADMAP.md).
 
 ## Features
 
@@ -21,6 +21,7 @@ Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeS
 - **Browser profiles:** Add, rename and remove browser profiles, with stable IDs and explicit browser selection for each shortcut. Deletion offers reassignment or leaves shortcuts unassigned.
 - **Local configuration:** Settings and shortcuts are saved locally; no Kreis account is required.
 - **Portable JSON backups:** Export and import all shortcuts, groups, browser profiles, appearance, and hotkey. Preview before replacing anything, or import an AI-edited shortcuts-only JSON.
+- **Live Tabs:** Add a dynamic shortcut that collects current web tabs from every connected browser profile and all its windows, then generates nested radial wheels: Profile → Domain → Tab. Refreshes on each opening, with pagination.
 
 ## Terminology
 
@@ -59,7 +60,7 @@ To nest a group, set its **Parent group** (or the shortcut's **Placement**). The
 
 **Existing settings are preserved when updating.** Kreis saves starter shortcuts on first launch. An existing layout, including an intentionally empty Kreis, is never overwritten by a version update. **Settings → Shortcuts & Groups → Restore starter shortcuts** lets you intentionally restore the samples (this replaces the current shortcuts and groups).
 
-### Export and import Kreis settings (0.14.1)
+### Export and import Kreis settings (0.15.0)
 
 Open **Settings → Backup & Restore**. **Export current settings** downloads a human-editable JSON backup including all shortcuts, nested groups and their order, custom icons and colors, Chromium browser profiles, wheel appearance, and the hotkey. The browser companion's **pairing key is intentionally excluded**; don't publicly share shortcut URLs and local paths if they are sensitive.
 
@@ -84,6 +85,23 @@ A complete export uses this format:
 ```
 
 An AI-generated layout can also consist of just `{"entries":[...]}`. This replaces only shortcuts and groups; omitted hotkey, appearance, and browser profiles stay untouched. Group children use `groupId` referencing a parent group entry's `id`, and entry order is preserved. Browser shortcuts may refer to an existing `profileId`.
+
+### Live Tabs: dynamically browse connected profiles (0.15.0)
+
+In **Settings → Shortcuts & Groups → Add shortcut**, select **Live Tabs · all connected browsers**. Give it a label, icon, color, and placement (including inside another group). The `live-tabs` entry type uses a fixed target `connected`, and **does not need a browser profile**. A minimal JSON entry looks like:
+
+```json
+{"id":"live-tabs","type":"live-tabs","title":"Live Tabs","target":"connected",
+ "profile":"Work","match":"prefix","icon":"layers","color":"#4c87a8"}
+```
+
+Each time you activate Live Tabs, Kreis asks **each configured, connected browser profile** for its current web tabs across all its browser windows. Then it generates:
+
+`Live Tabs → Vivaldi Work / Vivaldi Personal / Chrome Personal … → example.com / mail.google.com / … → individual open tabs`
+
+Choose a tab to focus its existing window and tab. More than 8 profiles/domains/tabs get **Prev / Next pagination**; the tab lists are **ephemeral** and never written to the Kreis settings JSON. Open the Live Tabs shortcut again to refresh. The domain grouping uses hostnames (ignoring `www.` only), so `mail.google.com` and `chat.google.com` stay distinct.
+
+Requires Kreis desktop **0.15.0** and browser extension **0.5.4** reloaded in each participating browser profile. No Vivaldi UI mod update. Browser tabs are accessible **only in connected profiles where the extension has tab permissions**, and the list includes HTTP/HTTPS web pages, not internal `chrome://` pages or browser windows without accessible tabs. Disconnected profiles are skipped; if no web tabs can be read, Kreis shows an error. For this explicit action, tab titles and URLs pass over the authenticated localhost connection to Kreis, not to any external server. Tab lists are not saved and browsing history is not scanned.
 
 ### Work with the wheel
 

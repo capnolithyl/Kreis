@@ -37,6 +37,9 @@ pub struct BrowserTab {
     pub id: i32,
     pub window_id: i32,
     pub title: String,
+    /// Only populated by an explicit Live Tabs request.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
 }
 
 struct PendingLookup {
@@ -143,6 +146,11 @@ impl Bridge {
                 .take(300)
                 .map(|mut tab| {
                     tab.title = tab.title.chars().take(160).collect();
+                    tab.url = tab.url.filter(|url|
+                        url.len() <= 4096 && url::Url::parse(url).is_ok_and(|parsed|
+                            matches!(parsed.scheme(), "http" | "https")
+                        )
+                    );
                     tab
                 })
                 .collect();

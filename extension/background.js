@@ -145,6 +145,24 @@ async function activateTab(url, match) {
 }
 
 async function lookupMatchingTabs(url, match, recreate=false, startUrl='') {
+  if (match === 'all') {
+    // Only the paired desktop app may request this over the authenticated
+    // localhost socket. Nothing is stored or transmitted to any web service.
+    const tabs = await allBrowserTabs();
+    const readable = tabs.filter(t => {
+      const url = t.url || t.pendingUrl;
+      if(typeof url !== 'string')return false;
+      try{return ['http:','https:'].includes(new URL(url).protocol);}
+      catch{return false;}
+    });
+    if(tabs.length && readable.length === 0)
+      throw Error('Tab URLs are not available. Check this extension\'s tabs permission.');
+    return readable.slice(0,300).map(t => ({
+      id:t.id, windowId:t.windowId,
+      title:String(t.title||'Untitled tab').slice(0,160),
+      url:(t.url||t.pendingUrl).slice(0,4096)
+    }));
+  }
   if (match === 'stack') {
     const matches = await nativeStacks.lookup(url,recreate,startUrl);
     await recordLookup({outcome: matches.length ? 'Matched Vivaldi native Tab Stack' : 'No named Vivaldi stack',totalTabs:matches.length,readableTabs:matches.length});

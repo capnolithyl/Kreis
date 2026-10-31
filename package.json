@@ -1,7 +1,7 @@
 {
   "name": "kreis",
   "private": true,
-  "version": "0.14.1",
+  "version": "0.15.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +10,7 @@
     "check:extension": "node --check extension/background.js && node --check extension/popup.js && node --check extension/vivaldi-stack.js && node --check extension/native-stack-broker.js && node --check vivaldi-mod/kreis-vivaldi.js && node --check extension/tab-finder.js && node --test extension/tab-finder.test.js extension/vivaldi-stack.test.js extension/native-stack-broker.test.js vivaldi-mod/kreis-vivaldi.test.js",
     "check:title-filter": "node --test tests/title-filter.test.mjs",
     "check:groups": "node --test tests/group-hierarchy.test.mjs",
+    "check:live-tabs": "node --test tests/live-tabs.test.mjs",
     "check:wheel-drag": "node --test tests/group-drag-drop.test.mjs",
     "check:quick-keys": "node --test tests/quick-keys.test.mjs tests/legacy-ten-slices.test.mjs",
     "check:starter": "node --test tests/starter-settings.test.mjs",
