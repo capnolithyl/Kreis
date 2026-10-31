@@ -153,6 +153,20 @@ fn activate_browser(bridge: tauri::State<'_, Arc<Bridge>>, url: String, profile:
     }
 }
 
+
+/// List the live, visible web tabs of one paired Chromium profile. No saved
+/// bookmarks/history; this is requested only when opening the Live Tabs wheel.
+#[tauri::command]
+async fn list_profile_tabs(
+    bridge: tauri::State<'_, Arc<Bridge>>,
+    profile: String
+) -> Result<Option<Vec<bridge::BrowserTab>>, String> {
+    if bridge.profile(&profile).is_none() {
+        return Err("Unknown browser profile.".into());
+    }
+    bridge.matching_tabs(&profile, "", "all", false, "").await
+}
+
 /// None means no compatible extension response; the frontend keeps legacy behavior.
 #[tauri::command]
 async fn query_browser_tabs(
@@ -241,7 +255,7 @@ pub fn run() {
     builder
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![pairing_key, connected_profiles, set_browser_profiles, open_folder, focus_application, list_application_windows, focus_application_window, activate_browser, query_browser_tabs, focus_browser_tab, open_browser_tab, toggle_at_cursor, hide_wheel, hub_drag::start_hub_drag, take_startup_context, set_windows_context_menu, windows_context_menu_enabled, set_file_picker_active])
+        .invoke_handler(tauri::generate_handler![pairing_key, connected_profiles, set_browser_profiles, open_folder, focus_application, list_application_windows, focus_application_window, activate_browser, query_browser_tabs, list_profile_tabs, focus_browser_tab, open_browser_tab, toggle_at_cursor, hide_wheel, hub_drag::start_hub_drag, take_startup_context, set_windows_context_menu, windows_context_menu_enabled, set_file_picker_active])
         .setup(|app| {
             #[cfg(windows)]
             app.manage(StartupContext(Mutex::new(context_menu::from_args(&std::env::args().collect::<Vec<_>>()))));

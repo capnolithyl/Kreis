@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { Entry, BrowserProfile } from './types';
 
-export type BrowserTab = { id: number; windowId: number; title: string };
+export type BrowserTab = { id: number; windowId: number; title: string; url?: string };
 export type AppWindow = { id: string; title: string };
 /** Enumeration uses visible titled top-level windows only. */
 export const listAppWindows = (executable: string) =>
@@ -33,6 +33,9 @@ export const getMatchingTabs = (entry: Entry) => invoke<BrowserTab[] | null>('qu
   recreateStack: entry.type === 'vivaldi-stack' && entry.recreateStack === true,
   startUrl: entry.type === 'vivaldi-stack' ? entry.stackStartUrl || '' : ''
 });
+/** Fresh snapshot from every window in one connected browser profile. Null means unavailable. */
+export const getLiveProfileTabs = (profile: string) =>
+  invoke<BrowserTab[] | null>('list_profile_tabs', { profile });
 export const focusBrowserTab = (profileId: string, tabId: number) =>
   invoke<void>('focus_browser_tab', { profile: profileId, tabId });
 export const openNewBrowserTab = (entry: Entry) =>
