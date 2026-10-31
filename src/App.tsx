@@ -530,8 +530,8 @@ export default function App() {
             : 'No readable web tabs found in connected browser profiles.');
         }
         pushLevel({kind:'live-profiles',entry,...snapshot});
-        if(snapshot.unavailable.length)
-          setNotice('Skipped disconnected profiles: ' + snapshot.unavailable.join(', '));
+        setWheelFeedback(snapshot.unavailable.length
+          ? 'Skipped disconnected profiles: ' + snapshot.unavailable.join(', ') : '');
         return;
       }
       if (entry.type === 'browser') {
@@ -938,7 +938,7 @@ export default function App() {
     : activeLevel?.kind === 'live-profiles'
       ? activeLevel.profiles.slice(tabPage * LIVE_PAGE_SIZE,(tabPage + 1) * LIVE_PAGE_SIZE)
         .map((p,index) => ({
-          key: p.profile.id, title: p.profile.name,
+          key: p.profile.id, title: (BROWSER_OPTIONS.find(b => b.id === p.profile.browserId)?.name || p.profile.browserId) + ' · ' + p.profile.name,
           color: LIVE_COLORS[(tabPage * LIVE_PAGE_SIZE + index) % LIVE_COLORS.length],
           icon: 'monitor', isGroup: true,
           tooltip: p.profile.browserId + ' · ' + p.tabCount + ' open web tabs across ' + p.domains.length + ' domains',
@@ -946,9 +946,9 @@ export default function App() {
         }))
     : activeLevel?.kind === 'live-domains'
       ? activeLevel.profile.domains.slice(tabPage * LIVE_PAGE_SIZE,(tabPage + 1) * LIVE_PAGE_SIZE)
-        .map(domain => ({
+        .map((domain,index) => ({
           key:domain.domain, title:domain.domain,
-          color:activeLevel.entry.color, icon:'globe', isGroup:true,
+          color:LIVE_COLORS[(tabPage * LIVE_PAGE_SIZE + index) % LIVE_COLORS.length], icon:'globe', isGroup:true,
           tooltip:domain.domain + ' · ' + domain.tabs.length + ' open tabs',
           onSelect: () => pushLevel({kind:'live-tabs',entry:activeLevel.entry,
             profileId:activeLevel.profile.profile.id,domain:domain.domain,tabs:domain.tabs})
@@ -988,7 +988,7 @@ export default function App() {
           }))
         : currentOptions.map(entry => ({
             key: entry.id, title: entry.title, color: entry.color, icon: entry.icon,
-            isGroup: entry.type === 'group' || entry.type === 'live-tabs',
+            isGroup: entry.type === 'group',
             tooltip: entry.type === 'group' ? `Open ${entry.title} group`
               : entry.type === 'live-tabs' ? 'Browse all open web tabs by browser profile and domain'
               : `${entry.title} (${(entry.type === 'browser' || entry.type === 'vivaldi-stack') ? (profileForEntry(entry, settings.browserProfiles)?.name || 'Unassigned profile') : entry.type === 'folder' ? 'File Explorer' : 'Windows'})`,
@@ -1132,7 +1132,7 @@ export default function App() {
                 aria-label="Back to Settings wheel" title="Back to Settings wheel"><ArrowLeft size={20}/></button>
               <div>
                 <div className="overline">KREIS SETTINGS</div>
-                <h1>{settingsCategoryTitle(settingsSection)} <small>0.14.1</small></h1>
+                <h1>{settingsCategoryTitle(settingsSection)} <small>0.15.0</small></h1>
                 <p>{SETTINGS_CATEGORIES.find(category => category.key === settingsSection)?.description}</p>
               </div>
             </div>
