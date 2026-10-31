@@ -4,7 +4,7 @@
 
 Kreis lives in the system tray and is built with Tauri 2, Rust, React, and TypeScript. Browser-tab integration uses an optional unpacked Chromium extension. Kreis 0.12 supports configurable browser profiles for Vivaldi, Chrome, Edge, Brave, and Opera (the same Chromium extension APIs; test each browser on your PC).
 
-> **Status:** Active development. The documentation below describes Kreis **0.15.0**. Planned changes are tracked in the [roadmap](ROADMAP.md).
+> **Status:** Active development. The documentation below describes Kreis **0.15.1**. Planned changes are tracked in the [roadmap](ROADMAP.md).
 
 ## Features
 
@@ -86,7 +86,7 @@ A complete export uses this format:
 
 An AI-generated layout can also consist of just `{"entries":[...]}`. This replaces only shortcuts and groups; omitted hotkey, appearance, and browser profiles stay untouched. Group children use `groupId` referencing a parent group entry's `id`, and entry order is preserved. Browser shortcuts may refer to an existing `profileId`.
 
-### Live Tabs: dynamically browse connected profiles (0.15.0)
+### Live Tabs: dynamically browse connected profiles (0.15.1)
 
 In **Settings → Shortcuts & Groups → Add shortcut**, select **Live Tabs · all connected browsers**. Give it a label, icon, color, and placement (including inside another group). The `live-tabs` entry type uses a fixed target `connected`, and **does not need a browser profile**. A minimal JSON entry looks like:
 
@@ -99,9 +99,9 @@ Each time you activate Live Tabs, Kreis asks **each configured, connected browse
 
 `Live Tabs → Vivaldi Work / Vivaldi Personal / Chrome Personal … → example.com / mail.google.com / … → individual open tabs`
 
-Choose a tab to focus its existing window and tab. More than 8 profiles/domains/tabs get **Prev / Next pagination**; the tab lists are **ephemeral** and never written to the Kreis settings JSON. Open the Live Tabs shortcut again to refresh. The domain grouping uses hostnames (ignoring `www.` only), so `mail.google.com` and `chat.google.com` stay distinct.
+Choose a tab to focus its existing window and tab. More than 8 profiles/domains/tabs get **Prev / Next pagination**; the tab lists are **ephemeral** and never written to the Kreis settings JSON. Open the Live Tabs shortcut again to refresh. Domains are still grouped by hostname (ignoring `www.` only), so `mail.google.com` and `chat.google.com` stay distinct. **Visible labels are now more readable:** for a domain with one tab, Kreis uses its page title; for multiple tabs, it prefers a consistent shared site name when available, otherwise a friendly hostname label. Individual tab wedges use the page title with common site suffixes removed; untitled tabs fall back to a readable page path or site name instead of a truncated URL. Hover tooltips retain the original title, domain, and URL.
 
-Requires Kreis desktop **0.15.0** and browser extension **0.5.4** reloaded in each participating browser profile. No Vivaldi UI mod update. Browser tabs are accessible **only in connected profiles where the extension has tab permissions**, and the list includes HTTP/HTTPS web pages, not internal `chrome://` pages or browser windows without accessible tabs. Disconnected profiles are skipped; if no web tabs can be read, Kreis shows an error. For this explicit action, tab titles and URLs pass over the authenticated localhost connection to Kreis, not to any external server. Tab lists are not saved and browsing history is not scanned.
+Requires Kreis desktop **0.15.1** and browser extension **0.5.4** reloaded in each participating browser profile. No Vivaldi UI mod update. Browser tabs are accessible **only in connected profiles where the extension has tab permissions**, and the list includes HTTP/HTTPS web pages, not internal `chrome://` pages or browser windows without accessible tabs. Disconnected profiles are skipped; if no web tabs can be read, Kreis shows an error. For this explicit action, tab titles and URLs pass over the authenticated localhost connection to Kreis, not to any external server. Tab lists are not saved and browsing history is not scanned.
 
 ### Work with the wheel
 

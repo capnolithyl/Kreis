@@ -60,3 +60,37 @@ test('fresh input is grouped every invocation rather than cached',()=>{
   assert.equal(first.profiles[0].domains[0].domain,'a.org');
   assert.equal(second.profiles[0].domains[0].domain,'b.org');
 });
+
+test('one-tab domains display page title rather than a bare URL',async()=>{
+  const {liveDomainLabel} = await import('../src/liveTabs.mjs');
+  const name = liveDomainLabel('chatgpt.com',[tab(1,'https://chatgpt.com/c/123',
+    'Kreis Live Tabs Feature - ChatGPT')]);
+  assert.equal(name,'Kreis Live Tabs Feature');
+});
+test('many tabs on one domain get the common site title, not an arbitrary tab',async()=>{
+  const {liveDomainLabel} = await import('../src/liveTabs.mjs');
+  assert.equal(liveDomainLabel('github.com',[
+    tab(1,'https://github.com/repo1','Fix issue - GitHub'),
+    tab(2,'https://github.com/repo2','Add PR | GitHub')
+  ]),'GitHub');
+  assert.equal(liveDomainLabel('example.org',[
+    tab(3,'https://example.org/a','Article one - Example'),
+    tab(4,'https://example.org/b','Article two - Example')
+  ]),'Example');
+  assert.equal(liveDomainLabel('example.org',[
+    tab(3,'https://example.org/a','Article one'),
+    tab(4,'https://example.org/b','Article two')
+  ]),'Example');
+});
+test('single tab labels strip only recognized site suffixes',async()=>{
+  const {liveTabLabel} = await import('../src/liveTabs.mjs');
+  assert.equal(liveTabLabel(tab(3,'https://youtube.com/watch?v=1','My video - YouTube')),'My video');
+  assert.equal(liveTabLabel(tab(4,'https://example.org/page','How it works - Step 2')),'How it works - Step 2');
+});
+test('missing, placeholder and URL-like titles fall back to readable path or site',async()=>{
+  const {liveTabLabel,liveDomainLabel} = await import('../src/liveTabs.mjs');
+  assert.equal(liveTabLabel(tab(1,'https://example.com/articles/cool-feature','Untitled tab')),'Cool feature');
+  assert.equal(liveTabLabel(tab(2,'https://chatgpt.com/c/123','https://chatgpt.com/c/123')),'ChatGPT');
+  assert.equal(liveDomainLabel('mail.google.com',[tab(3,'https://mail.google.com/mail/u/0/','Loading...')]),'Gmail');
+  assert.equal(liveDomainLabel('chat.google.com',[]),'Google Chat');
+});
