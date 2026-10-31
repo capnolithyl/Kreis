@@ -1088,7 +1088,10 @@ export default function App() {
           key={activeLevel ? `${activeLevel.kind}-${activeLevel.entry.id}-${tabPage}-${wheelEpoch}` : `main-${wheelEpoch}`}
           buttons={wheelButtons}
           appearance={settings.appearance}
-          submenuTitle={activeLevel?.entry.title}
+          submenuTitle={activeLevel?.kind === 'live-domains'
+            ? activeLevel.profile.profile.name
+            : activeLevel?.kind === 'live-tabs' ? activeLevel.domain
+            : activeLevel?.entry.title}
           tabCount={levelCount}
           countLabel={levelCountLabel}
           busy={busy}
@@ -1335,6 +1338,7 @@ export default function App() {
                             : type === 'group' ? 'folder'
                             : type === 'live-tabs' ? DEFAULT_LIVE.icon
                             : type === 'vivaldi-stack' ? DEFAULT_STACK.icon : draft.icon,
+                          color: type === 'live-tabs' ? DEFAULT_LIVE.color : draft.color,
                           windowTitle: undefined
                         });
                       }}>
