@@ -28,7 +28,7 @@ test('groups all windows by configured browser profile, then by domain',()=>{
   assert.equal(result.profiles.length,2);
   assert.deepEqual(result.profiles[0].domains.map(d=>[d.domain,d.tabs.length]),
     [['example.com',2],['chat.google.com',1]]);
-  assert.equal(result.profiles[0].domains[0].tabs[0].windowId,5);
+  assert.deepEqual(result.profiles[0].domains[0].tabs.map(tab=>tab.windowId).sort(),[5,9]);
   assert.equal(result.profiles[1].profile.browserId,'chrome');
   assert.equal(result.profiles[1].tabCount,1);
 });
