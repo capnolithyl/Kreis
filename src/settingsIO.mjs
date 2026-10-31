@@ -5,11 +5,11 @@ export const SETTINGS_FILE_FORMAT = 'kreis-settings';
 export const SETTINGS_FILE_VERSION = 1;
 export const MAX_SETTINGS_FILE_BYTES = 2_000_000;
 const browserIds = new Set(BROWSER_OPTIONS.map(item => item.id));
-const entryTypes = new Set(['browser','vivaldi-stack','app','folder','group']);
+const entryTypes = new Set(['browser','vivaldi-stack','app','folder','group','live-tabs']);
 const matchModes = new Set(['exact','prefix','site']);
 const fonts = new Set(['Inter','Segoe UI','Bahnschrift','Arial','Verdana','Tahoma','Trebuchet MS','Georgia','Consolas','Courier New']);
-const colors = { browser:'#6385d7', 'vivaldi-stack':'#6a8ec2', app:'#438ba8', folder:'#c1a062', group:'#6a8ec2' };
-const icons = { browser:'globe', 'vivaldi-stack':'layers', app:'rocket', folder:'folder', group:'folder' };
+const colors = { 'live-tabs':'#4c87a8', browser:'#6385d7', 'vivaldi-stack':'#6a8ec2', app:'#438ba8', folder:'#c1a062', group:'#6a8ec2' };
+const icons = { 'live-tabs':'layers', browser:'globe', 'vivaldi-stack':'layers', app:'rocket', folder:'folder', group:'folder' };
 const own = (object,key) => Object.prototype.hasOwnProperty.call(object,key);
 const object = value => value!==null && typeof value==='object' && !Array.isArray(value);
 const text = (value,max=4096) => typeof value==='string' && value.length<=max && !/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(value);
@@ -75,13 +75,13 @@ export function parseSettingsImport(contents,current){
     entries=input.entries.map((entry,index)=>{
       const label='Shortcut '+(index+1);
       if(!object(entry)||!entryTypes.has(entry.type))
-        throw Error(label+' needs a valid type: browser, vivaldi-stack, app, folder or group.');
+        throw Error(label+' needs a valid type: browser, vivaldi-stack, app, folder, group or live-tabs.');
       const type=entry.type;
       const id=own(entry,'id')?requireString(entry.id,label+' ID',128):'kreis-import-'+(index+1);
       if(!id.trim())throw Error(label+' needs a nonempty ID.');
       const title=requireString(entry.title,label+' title',100).trim();
       if(!title)throw Error(label+' needs a title.');
-      const target=entry.target===undefined&&type==='group'?'':requireString(entry.target,label+' target');
+      const target=entry.target===undefined&&type==='group'?'':type==='live-tabs'?'connected':requireString(entry.target,label+' target');
       if(type!=='group'&&!target.trim())throw Error(label+' needs a target.');
       if(type==='browser'&&!httpUrl(target))throw Error(label+' needs an HTTP(S) website URL.');
       if(type==='vivaldi-stack'&&target.trim().length>60)

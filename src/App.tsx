@@ -4,7 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { load, type Store } from '@tauri-apps/plugin-store';
 import { ArrowLeft, Check, ChevronDown, CircleHelp, Copy, Download, FileJson, Minus, Plus, RotateCcw, Save, Settings2, Trash2, Upload, X } from 'lucide-react';
-import { focusAppWindow, focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, setBrowserProfiles, hideWheel, launch, startHubDrag, listAppWindows, openFolder, openNewBrowserTab, toggleWheel, type AppWindow, type BrowserTab, type ContextAdd, takeStartupContext, windowsContextMenuEnabled, setWindowsContextMenu, setSettingsPickerActive } from './bridge';
+import { focusAppWindow, focusBrowserTab, getMatchingTabs, getPairingKey, getProfiles, getLiveProfileTabs, setBrowserProfiles, hideWheel, launch, startHubDrag, listAppWindows, openFolder, openNewBrowserTab, toggleWheel, type AppWindow, type BrowserTab, type ContextAdd, takeStartupContext, windowsContextMenuEnabled, setWindowsContextMenu, setSettingsPickerActive } from './bridge';
 import { icons } from './icons';
 import { createStarterEntries, selectInitialSettings } from './starterSettings.mjs';
 import { addBrowserProfile, assignProfile, BROWSER_OPTIONS, deleteBrowserProfile, normalizeBrowserSettings, profileForEntry, renameBrowserProfile } from './browserProfiles.mjs';
@@ -18,6 +18,7 @@ import { SETTINGS_CATEGORIES, settingsCategoryTitle, type SettingsCategory } fro
 import { ColorPicker, IconPicker } from './ShortcutAppearancePicker';
 import WheelColorPicker from './WheelColorPicker';
 import { defaultContextAppearance } from './contextAppearance.mjs';
+import { groupLiveTabs, type LiveProfile } from './liveTabs.mjs';
 import { MAX_SETTINGS_FILE_BYTES, parseSettingsImport, serializeSettings, type SettingsImportPreview } from './settingsIO.mjs';
 import { eligibleParentGroups, flattenHierarchy, getChildren, removeGroup, suggestParent, validateHierarchy } from './groupHierarchy.mjs';
 import { dropEntry, type DropMode } from './groupDragDrop.mjs';
@@ -27,13 +28,19 @@ type WheelLevel =
   | { kind: 'settings'; entry: Entry }
   | { kind: 'group'; entry: Entry }
   | { kind: 'tabs'; entry: Entry; tabs: BrowserTab[] }
-  | { kind: 'apps'; entry: Entry; windows: AppWindow[] };
+  | { kind: 'apps'; entry: Entry; windows: AppWindow[] }
+  | { kind: 'live-profiles'; entry: Entry; profiles: LiveProfile[]; unavailable: string[] }
+  | { kind: 'live-domains'; entry: Entry; profile: LiveProfile }
+  | { kind: 'live-tabs'; entry: Entry; profileId: string; domain: string; tabs: BrowserTab[] };
 
 const MAX_ITEMS_PER_WHEEL = 10;
 /** Synthetic entry to reuse Back and nested-wheel rendering without saving a settings shortcut. */
 const SETTINGS_ENTRY: Entry = { id: 'kreis-settings', title: 'Settings', type: 'group', target: '', profile: 'Work', match: 'prefix', icon: 'settings', color: '#617cae' };
 const DEFAULT_FOLDER: Entry = { id: '', title: '', type: 'folder', target: 'shell:Downloads', profile: 'Work', match: 'prefix', icon: 'folder', color: '#c1a062' };
 const DEFAULT_GROUP: Entry = { id: '', title: '', type: 'group', target: '', profile: 'Work', match: 'prefix', icon: 'folder', color: '#6a8ec2' };
+const DEFAULT_LIVE: Entry = { id: '', title: 'Live Tabs', type: 'live-tabs', target: 'connected', profile: 'Work', match: 'prefix', icon: 'layers', color: '#4c87a8' };
+const LIVE_COLORS = ['#497cc8', '#4b9a86', '#aa73b6', '#c48a4c', '#c26376', '#568fac', '#8d9a55', '#8d78c3'];
+const LIVE_PAGE_SIZE = 8;
 const DEFAULT_STACK: Entry = { id: '', title: '', type: 'vivaldi-stack', target: '', profile: 'Work', profileId: 'Work', browserId: 'vivaldi', match: 'exact', icon: 'layers', color: '#6a8ec2', recreateStack: false };
 const DEFAULT_NEW: Entry = { id: '', title: '', type: 'browser', target: 'https://', profile: 'Work', match: 'prefix', icon: 'globe', color: '#6385d7' };
 const wheelSize = 600;
@@ -509,6 +516,24 @@ export default function App() {
     setError('');
     const generation = selectionGeneration.current;
     try {
+      if (entry.type === 'live-tabs') {
+        // Re-query all configured browser profiles on every shortcut opening.
+        const results = await Promise.all(settings.browserProfiles.map(async profile => {
+          try { return { profile, tabs: await getLiveProfileTabs(profile.id) }; }
+          catch { return { profile, tabs: null }; }
+        }));
+        if (generation !== selectionGeneration.current) return;
+        const snapshot = groupLiveTabs(results);
+        if (!snapshot.profiles.length) {
+          throw Error(snapshot.unavailable.length === settings.browserProfiles.length
+            ? 'No paired browser profiles are connected. Open a browser and check Settings → Connection.'
+            : 'No readable web tabs found in connected browser profiles.');
+        }
+        pushLevel({kind:'live-profiles',entry,...snapshot});
+        if(snapshot.unavailable.length)
+          setNotice('Skipped disconnected profiles: ' + snapshot.unavailable.join(', '));
+        return;
+      }
       if (entry.type === 'browser') {
         const configuredProfile = profileForEntry(entry, settings.browserProfiles);
         if (!configuredProfile) {
@@ -591,6 +616,26 @@ export default function App() {
       if (generation === selectionGeneration.current) await closeLauncher();
     } catch (cause) {
       if (generation === selectionGeneration.current) setError(String(cause));
+    } finally {
+      if (generation === selectionGeneration.current) {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    }
+  }
+
+  async function selectLiveTab(tab: BrowserTab, profileId: string) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
+    const generation = selectionGeneration.current;
+    try {
+      await focusBrowserTab(profileId, tab.id);
+      if (generation === selectionGeneration.current) await closeLauncher();
+    } catch(cause) {
+      if (generation === selectionGeneration.current)
+        setError('This tab may have closed or moved. Reopen Live Tabs to refresh. ' + String(cause));
     } finally {
       if (generation === selectionGeneration.current) {
         busyRef.current = false;
@@ -873,7 +918,13 @@ export default function App() {
   const pageCount = activeLevel?.kind === 'tabs'
     ? Math.ceil(activeLevel.tabs.length / tabsPerPage)
     : activeLevel?.kind === 'apps'
-      ? Math.ceil(activeLevel.windows.length / 8) : 1;
+      ? Math.ceil(activeLevel.windows.length / 8)
+    : activeLevel?.kind === 'live-profiles'
+      ? Math.ceil(activeLevel.profiles.length / LIVE_PAGE_SIZE)
+    : activeLevel?.kind === 'live-domains'
+      ? Math.ceil(activeLevel.profile.domains.length / LIVE_PAGE_SIZE)
+    : activeLevel?.kind === 'live-tabs'
+      ? Math.ceil(activeLevel.tabs.length / LIVE_PAGE_SIZE) : 1;
   const wheelButtons: WheelOption[] =
     activeLevel?.kind === 'settings'
       ? SETTINGS_CATEGORIES.map(category => ({
@@ -883,6 +934,33 @@ export default function App() {
           color: category.color,
           tooltip: category.description,
           onSelect: () => void openSettings(category.key)
+        }))
+    : activeLevel?.kind === 'live-profiles'
+      ? activeLevel.profiles.slice(tabPage * LIVE_PAGE_SIZE,(tabPage + 1) * LIVE_PAGE_SIZE)
+        .map((p,index) => ({
+          key: p.profile.id, title: p.profile.name,
+          color: LIVE_COLORS[(tabPage * LIVE_PAGE_SIZE + index) % LIVE_COLORS.length],
+          icon: 'monitor', isGroup: true,
+          tooltip: p.profile.browserId + ' · ' + p.tabCount + ' open web tabs across ' + p.domains.length + ' domains',
+          onSelect: () => pushLevel({kind:'live-domains',entry:activeLevel.entry,profile:p})
+        }))
+    : activeLevel?.kind === 'live-domains'
+      ? activeLevel.profile.domains.slice(tabPage * LIVE_PAGE_SIZE,(tabPage + 1) * LIVE_PAGE_SIZE)
+        .map(domain => ({
+          key:domain.domain, title:domain.domain,
+          color:activeLevel.entry.color, icon:'globe', isGroup:true,
+          tooltip:domain.domain + ' · ' + domain.tabs.length + ' open tabs',
+          onSelect: () => pushLevel({kind:'live-tabs',entry:activeLevel.entry,
+            profileId:activeLevel.profile.profile.id,domain:domain.domain,tabs:domain.tabs})
+        }))
+    : activeLevel?.kind === 'live-tabs'
+      ? activeLevel.tabs.slice(tabPage * LIVE_PAGE_SIZE,(tabPage + 1) * LIVE_PAGE_SIZE)
+        .map(tab => ({
+          key:'live-tab-' + tab.id,
+          title:tab.title || tab.url || 'Untitled tab',
+          color:activeLevel.entry.color, icon:'globe',
+          tooltip:(tab.title || 'Untitled tab') + ' · ' + (tab.url || ''),
+          onSelect: () => void selectLiveTab(tab,activeLevel.profileId)
         }))
     : activeLevel?.kind === 'tabs'
       ? [
@@ -910,8 +988,9 @@ export default function App() {
           }))
         : currentOptions.map(entry => ({
             key: entry.id, title: entry.title, color: entry.color, icon: entry.icon,
-            isGroup: entry.type === 'group',
+            isGroup: entry.type === 'group' || entry.type === 'live-tabs',
             tooltip: entry.type === 'group' ? `Open ${entry.title} group`
+              : entry.type === 'live-tabs' ? 'Browse all open web tabs by browser profile and domain'
               : `${entry.title} (${(entry.type === 'browser' || entry.type === 'vivaldi-stack') ? (profileForEntry(entry, settings.browserProfiles)?.name || 'Unassigned profile') : entry.type === 'folder' ? 'File Explorer' : 'Windows'})`,
             onSelect: () => void selectEntry(entry)
           }));
@@ -920,10 +999,15 @@ export default function App() {
     : activeLevel?.kind === 'group'
     ? currentOptions.length
     : activeLevel?.kind === 'tabs' ? activeLevel.tabs.length
-      : activeLevel?.kind === 'apps' ? activeLevel.windows.length : 0;
+      : activeLevel?.kind === 'apps' ? activeLevel.windows.length
+      : activeLevel?.kind === 'live-profiles' ? activeLevel.profiles.length
+      : activeLevel?.kind === 'live-domains' ? activeLevel.profile.domains.length
+      : activeLevel?.kind === 'live-tabs' ? activeLevel.tabs.length : 0;
   const levelCountLabel = activeLevel?.kind === 'settings' ? 'categories'
     : activeLevel?.kind === 'group' ? 'shortcuts'
-    : activeLevel?.kind === 'apps' ? 'windows' : 'tabs';
+    : activeLevel?.kind === 'apps' ? 'windows'
+    : activeLevel?.kind === 'live-profiles' ? 'profiles'
+    : activeLevel?.kind === 'live-domains' ? 'domains' : 'tabs';
   const ContextIcon = icons[contextIcon] || icons.globe;
 
   return (
@@ -1121,6 +1205,7 @@ export default function App() {
                       <div className="entry-name">
                         <strong>{entry.title}</strong>
                         <small>{isGroup ? `Group · ${childrenFor(entry.id).length} items`
+                          : entry.type === 'live-tabs' ? 'Dynamic browser tab explorer'
                           : entry.type === 'app' ? 'Windows app' : entry.type === 'folder' ? 'File Explorer folder' : `${BROWSER_OPTIONS.find(b => b.id === entry.browserId)?.name || 'Browser'} · ${profileForEntry(entry,settings.browserProfiles)?.name || 'Unassigned'}`}</small>
                       </div>
                       <span className="entry-target" title={entry.target}>
@@ -1238,7 +1323,8 @@ export default function App() {
                         setDraft({
                           ...draft, type,
                           target: type === 'folder' ? DEFAULT_FOLDER.target
-                            : type === 'app' ? 'Code.exe' : type === 'browser' ? 'https://' : '',
+                            : type === 'app' ? 'Code.exe' : type === 'browser' ? 'https://'
+                            : type === 'live-tabs' ? DEFAULT_LIVE.target : '',
                           ...(type === 'vivaldi-stack' ? {
                             profileId: settings.browserProfiles.find(p => p.browserId === 'vivaldi')?.id || '',
                             browserId: 'vivaldi' as const, profile: 'Work',
@@ -1247,18 +1333,20 @@ export default function App() {
                           } : {}),
                           icon: type === 'folder' ? DEFAULT_FOLDER.icon
                             : type === 'group' ? 'folder'
+                            : type === 'live-tabs' ? DEFAULT_LIVE.icon
                             : type === 'vivaldi-stack' ? DEFAULT_STACK.icon : draft.icon,
                           windowTitle: undefined
                         });
                       }}>
                       <option value="browser">Browser tab</option>
                       <option value="vivaldi-stack">Vivaldi named Tab Stack (experimental)</option>
+                      <option value="live-tabs">Live Tabs · all connected browsers</option>
                       <option value="app">Windows application</option>
                       <option value="folder">Windows folder</option>
                       <option value="group">Group</option>
                     </select>
                   </label>
-                  {draft.type !== 'group' && (
+                  {draft.type !== 'group' && draft.type !== 'live-tabs' && (
                     <>
                       <label className="wide">{draft.type === 'browser' ? 'Website URL' : draft.type === 'vivaldi-stack' ? 'Stack name' : draft.type === 'folder' ? 'Folder path' : 'Executable name or full .exe path'}
                         <input value={draft.target}
@@ -1316,6 +1404,11 @@ export default function App() {
                       )}
                     </>
                   )}
+                      {draft.type === 'live-tabs' && <p className="helper wide">
+                        Every opening reads current HTTP(S) tabs from paired browsers across all
+                        windows, grouped by profile and hostname. No tab list is saved. Requires
+                        browser companion v0.5.4; disconnected profiles are skipped.
+                      </p>}
                       <label>{draft.type === 'group' ? 'Parent group' : 'Placement'}
                         <select value={draft.groupId || ''}
                           onChange={event => setDraft({...draft, groupId: event.target.value || undefined})}>
