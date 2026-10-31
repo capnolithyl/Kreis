@@ -18,7 +18,7 @@ import { SETTINGS_CATEGORIES, settingsCategoryTitle, type SettingsCategory } fro
 import { ColorPicker, IconPicker } from './ShortcutAppearancePicker';
 import WheelColorPicker from './WheelColorPicker';
 import { defaultContextAppearance } from './contextAppearance.mjs';
-import { groupLiveTabs, type LiveProfile } from './liveTabs.mjs';
+import { groupLiveTabs, liveDomainLabel, liveTabLabel, type LiveProfile } from './liveTabs.mjs';
 import { MAX_SETTINGS_FILE_BYTES, parseSettingsImport, serializeSettings, type SettingsImportPreview } from './settingsIO.mjs';
 import { eligibleParentGroups, flattenHierarchy, getChildren, removeGroup, suggestParent, validateHierarchy } from './groupHierarchy.mjs';
 import { dropEntry, type DropMode } from './groupDragDrop.mjs';
@@ -947,9 +947,9 @@ export default function App() {
     : activeLevel?.kind === 'live-domains'
       ? activeLevel.profile.domains.slice(tabPage * LIVE_PAGE_SIZE,(tabPage + 1) * LIVE_PAGE_SIZE)
         .map((domain,index) => ({
-          key:domain.domain, title:domain.domain,
+          key:domain.domain, title:liveDomainLabel(domain.domain,domain.tabs),
           color:LIVE_COLORS[(tabPage * LIVE_PAGE_SIZE + index) % LIVE_COLORS.length], icon:'globe', isGroup:true,
-          tooltip:domain.domain + ' · ' + domain.tabs.length + ' open tabs',
+          tooltip:liveDomainLabel(domain.domain,domain.tabs) + ' · ' + domain.domain + ' · ' + domain.tabs.length + ' open tabs',
           onSelect: () => pushLevel({kind:'live-tabs',entry:activeLevel.entry,
             profileId:activeLevel.profile.profile.id,domain:domain.domain,tabs:domain.tabs})
         }))
@@ -957,7 +957,7 @@ export default function App() {
       ? activeLevel.tabs.slice(tabPage * LIVE_PAGE_SIZE,(tabPage + 1) * LIVE_PAGE_SIZE)
         .map(tab => ({
           key:'live-tab-' + tab.id,
-          title:tab.title || tab.url || 'Untitled tab',
+          title:liveTabLabel(tab,activeLevel.domain),
           color:activeLevel.entry.color, icon:'globe',
           tooltip:(tab.title || 'Untitled tab') + ' · ' + (tab.url || ''),
           onSelect: () => void selectLiveTab(tab,activeLevel.profileId)
@@ -1135,7 +1135,7 @@ export default function App() {
                 aria-label="Back to Settings wheel" title="Back to Settings wheel"><ArrowLeft size={20}/></button>
               <div>
                 <div className="overline">KREIS SETTINGS</div>
-                <h1>{settingsCategoryTitle(settingsSection)} <small>0.15.0</small></h1>
+                <h1>{settingsCategoryTitle(settingsSection)} <small>0.15.1</small></h1>
                 <p>{SETTINGS_CATEGORIES.find(category => category.key === settingsSection)?.description}</p>
               </div>
             </div>
